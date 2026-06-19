@@ -1,0 +1,195 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with level, xp, avatar customization and status details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "gender": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "level": { "type": "number" },
+        "xp": { "type": "number" },
+        "xpNeededForNextLevel": { "type": "number" },
+        "totalPoints": { "type": "number" },
+        "streakDays": { "type": "number" },
+        "lastAccessDate": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "bibleReadingsCount": { "type": "number" },
+        "completedMissionsCount": { "type": "number" },
+        "reflectionsCount": { "type": "number" },
+        "lessonsStudiedCount": { "type": "number" },
+        "church": { "type": "string" },
+        "role": { "type": "string" },
+        "skinColor": { "type": "string" },
+        "hairStyle": { "type": "string" },
+        "hairColor": { "type": "string" },
+        "eyeStyle": { "type": "string" },
+        "clothingColor": { "type": "string" },
+        "hasBeard": { "type": "boolean" },
+        "hasGlasses": { "type": "boolean" },
+        "remindLesson": { "type": "boolean" },
+        "remindStreak": { "type": "boolean" },
+        "remindProgression": { "type": "boolean" },
+        "lessonTime": { "type": "string" }
+      },
+      "required": ["id", "fullName", "email", "gender", "level", "xp", "totalPoints", "streakDays"]
+    },
+    "SabbathLesson": {
+      "title": "SabbathLesson",
+      "description": "Indicates a sabbath lesson answered and completed by a member",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "title": { "type": "string" },
+        "verse": { "type": "string" },
+        "content": { "type": "string" },
+        "question": { "type": "string" },
+        "answer": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "completed"]
+    },
+    "BibleReading": {
+      "title": "BibleReading",
+      "description": "Records completion of a specific daily bible plan reading",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "day": { "type": "number" },
+        "passage": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["id", "day", "passage", "completed"]
+    },
+    "SpiritualReflection": {
+      "title": "SpiritualReflection",
+      "description": "A self-authored prayer, gratitude or reflection entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string" }
+      },
+      "required": ["id", "date", "content", "type"]
+    },
+    "CompletedMissionLog": {
+      "title": "CompletedMissionLog",
+      "description": "History log of completed mission challenges",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "missionId": { "type": "string" },
+        "missionTitle": { "type": "string" },
+        "completedAt": { "type": "string" },
+        "notes": { "type": "string" },
+        "xpEarned": { "type": "number" }
+      },
+      "required": ["id", "missionId", "missionTitle", "completedAt", "xpEarned"]
+    },
+    "Medal": {
+      "title": "Medal",
+      "description": "Represents an unlocked milestone achievement or medal",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "icon": { "type": "string" },
+        "unlockedAt": { "type": "string" },
+        "conditionType": { "type": "string" },
+        "conditionValue": { "type": "number" }
+      },
+      "required": ["id", "name", "description", "icon", "conditionType", "conditionValue"]
+    },
+    "ActivityHistory": {
+      "title": "ActivityHistory",
+      "description": "Audit trail logging daily disciplinary accomplishments and XP gains",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "xpReceived": { "type": "number" },
+        "observation": { "type": "string" }
+      },
+      "required": ["id", "date", "type", "title", "xpReceived"]
+    },
+    "MissionChallenge": {
+      "title": "MissionChallenge",
+      "description": "Global list of tasks and spiritual missions created/edited by the leaders",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "xpReward": { "type": "number" },
+        "levelRequired": { "type": "number" },
+        "completedCount": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "difficulty": { "type": "string" }
+      },
+      "required": ["id", "title", "description", "xpReward", "levelRequired", "isActive", "difficulty"]
+    },
+    "PrayerRequest": {
+      "title": "PrayerRequest",
+      "description": "A public or anonymous prayer request displayed on the community mural",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "author": { "type": "string" },
+        "content": { "type": "string" },
+        "date": { "type": "string" },
+        "prayinCount": { "type": "number" },
+        "prayingUsers": { "type": "array" }
+      },
+      "required": ["id", "userId", "author", "content", "date", "prayinCount", "prayingUsers"]
+    }
+  },
+  "firestore": {
+    "/prayers/{prayerId}": {
+      "schema": "PrayerRequest",
+      "description": "Public or shared prayer requests published on the church mural"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Physical user profile record mapped to authentication uid"
+    },
+    "/users/{userId}/lessons/{lessonId}": {
+      "schema": "SabbathLesson",
+      "description": "Sub-resource representing current progress/answers on Sabbath lessons"
+    },
+    "/users/{userId}/bible/{readingId}": {
+      "schema": "BibleReading",
+      "description": "Sub-collection of read Bible chapters per day"
+    },
+    "/users/{userId}/reflections/{reflectionId}": {
+      "schema": "SpiritualReflection",
+      "description": "Sub-collection document of prayer or personal reflections"
+    },
+    "/users/{userId}/completedMissions/{logId}": {
+      "schema": "CompletedMissionLog",
+      "description": "Log registers tracking missions completed by this member"
+    },
+    "/users/{userId}/medals/{medalId}": {
+      "schema": "Medal",
+      "description": "User medals list containing unlocked stamps"
+    },
+    "/users/{userId}/logs/{logId}": {
+      "schema": "ActivityHistory",
+      "description": "Activity feeds logging exact achievements"
+    },
+    "/challenges/{challengeId}": {
+      "schema": "MissionChallenge",
+      "description": "Primary repository of available missionary challenges managed by pastors"
+    }
+  }
+}
