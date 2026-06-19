@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "Esplanada Viva",
+  "description": "Aplicativo oficial de crescimento espiritual, comunhão e discipulado integrado do Distrito Esplanada.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
