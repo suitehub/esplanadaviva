@@ -34,28 +34,6 @@ export default function TabRelationship({ user }: { user: UserProfileData | null
     }
   }, [user]);
 
-  // Clean up previous "demonstration" prayers ONCE when loading is active and they exist
-  useEffect(() => {
-    const isCleared = localStorage.getItem('discipulado_demo_prayers_cleared_v1');
-    if (!isCleared && publicPrayers.length > 0) {
-      const runCleanup = async () => {
-        try {
-          console.log("Iniciando limpeza programmaticamente de demonstrações antigas...");
-          // We can delete all prayers that are current in the DB as they are all demonstrations
-          const deletePromises = publicPrayers.map((p) => deleteDoc(doc(db, 'prayers', p.id)));
-          await Promise.all(deletePromises);
-          
-          localStorage.setItem('discipulado_demo_prayers_cleared_v1', 'true');
-          setPublicPrayers([]); // Empty the local list too safely
-          console.log("Pedidos de demonstração deletados com sucesso!");
-        } catch (e) {
-          console.error("Erro na limpeza de demonstrações:", e);
-        }
-      };
-      runCleanup();
-    }
-  }, [publicPrayers]);
-
   // Subscribe to real-time prayer requests from Firestore
   useEffect(() => {
     setLoading(true);
