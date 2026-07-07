@@ -99,6 +99,12 @@ export default function TabRelationship({ user }: { user: UserProfileData | null
     };
 
     try {
+      // Optimistic update for instant visual feedback
+      setPublicPrayers((prev) => {
+        if (prev.some(p => p.id === prayerId)) return prev;
+        return [newPrayer, ...prev];
+      });
+
       await setDoc(doc(db, 'prayers', prayerId), newPrayer);
       
       setPrayerContent('');

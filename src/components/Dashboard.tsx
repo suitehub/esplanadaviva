@@ -13,7 +13,7 @@ interface DashboardProps {
     reflectionCompleted: boolean;
     missionCompleted: boolean;
   };
-  onQuickAction: (action: 'licao' | 'bible' | 'reflection' | 'mission' | 'path' | 'medals' | 'admin') => void;
+  onQuickAction: (action: 'licao' | 'bible' | 'reflection' | 'mission' | 'path' | 'medals' | 'admin' | 'assessment') => void;
   isAdminUser?: boolean;
 }
 
@@ -302,14 +302,29 @@ export default function Dashboard({ user, dailyStatus, onQuickAction, isAdminUse
         </div>
       </div>
 
+      {/* 🧭 Premium Spiritual Maturity Callout Card */}
+      <div className="bg-gradient-to-r from-[#0f2646] to-[#004b87] text-white rounded-3xl p-5 shadow-md flex items-center justify-between border border-[#0a1a30] text-left">
+        <div className="space-y-1.5 flex-1 pr-3">
+          <span className="text-[9px] uppercase tracking-widest font-black text-amber-400 font-mono">Pilar de Discipulado</span>
+          <h4 className="text-sm font-black mt-0.5">Maturidade Espiritual</h4>
+          <p className="text-[11px] text-stone-200 leading-normal">
+            {user.lastAssessmentDate 
+              ? `Último diagnóstico em ${user.lastAssessmentDate}. Faça novas avaliações periódicas para acompanhar sua maturidade.`
+              : 'Responda a perguntas sinceras e descubra seu nível espiritual nos 4 pilares essenciais.'}
+          </p>
+        </div>
+        <button
+          onClick={() => onQuickAction('assessment')}
+          className="text-xs bg-white text-[#004b87] hover:bg-stone-100 font-extrabold px-4 py-2.5 rounded-xl transition-all whitespace-nowrap cursor-pointer shadow-md shrink-0"
+        >
+          {user.lastAssessmentDate ? 'Ver Resultados' : 'Fazer Diagnóstico'}
+        </button>
+      </div>
+
       {/* Gamified Launcher Buttons */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">Acesso Rápido às Sub-seções</h4>
-          <div className="flex items-center gap-1.5 bg-[#FDF8EB] px-2.5 py-1 rounded-full text-[9px] font-bold text-[#b48a30] border border-[#f5ebcb]">
-            <Gift className="w-3 h-3 text-[#b48a30]" />
-            <span>Próximo Benefício: {getNextRewardText()}</span>
-          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

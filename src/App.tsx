@@ -67,12 +67,14 @@ import HistoryLogs from './components/HistoryLogs';
 import NotificationSettings from './components/NotificationSettings';
 import AdminPanel from './components/AdminPanel';
 import TabRelationship from './components/TabRelationship';
+import DiscipuladorPanel from './components/DiscipuladorPanel';
+import SpiritualAssessmentView from './components/SpiritualAssessmentView';
 
 export default function App() {
   // Navigation & Screen Control state
   const [isOnboarded, setIsOnboarded] = useState<boolean>(false);
   const [user, setUser] = useState<UserProfileData | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'communion' | 'mission' | 'path' | 'relationship' | 'medals' | 'history' | 'notifications' | 'admin'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'communion' | 'mission' | 'path' | 'relationship' | 'medals' | 'history' | 'notifications' | 'admin' | 'discipulador' | 'assessment'>('dashboard');
   const [firebaseReady, setFirebaseReady] = useState(false);
   
   // Core DB states
@@ -131,12 +133,59 @@ export default function App() {
           const userDocSnap = await getDoc(userDocRef);
           
           let profile: UserProfileData;
+          const todayStr = new Date().toISOString().split('T')[0];
+
           if (userDocSnap.exists()) {
             profile = userDocSnap.data() as UserProfileData;
             if (profile.email && profile.email.toLowerCase() === 'rickyjorgecastro@gmail.com' && profile.role !== 'admin') {
               profile.role = 'admin';
               await setDoc(userDocRef, { role: 'admin' }, { merge: true });
             }
+
+            // --- DAILY STATUS & STREAK SYNC ---
+            let status = profile.dailyStatus;
+            let nextStreak = profile.streakDays || 1;
+
+            if (!status) {
+              status = {
+                lessonCompleted: false,
+                bibleCompleted: false,
+                reflectionCompleted: false,
+                missionCompleted: false,
+                lastResetDate: todayStr
+              };
+              profile.dailyStatus = status;
+              profile.lastAccessDate = todayStr;
+              await setDoc(userDocRef, profile);
+            } else if (status.lastResetDate !== todayStr) {
+              // It is a new day! Calculate streak increment or reset
+              const didAnything = status.lessonCompleted || status.bibleCompleted || status.reflectionCompleted || status.missionCompleted;
+              if (didAnything) {
+                nextStreak += 1;
+              } else {
+                nextStreak = 1; // reset streak if missed a day
+              }
+              
+              status = {
+                lessonCompleted: false,
+                bibleCompleted: false,
+                reflectionCompleted: false,
+                missionCompleted: false,
+                lastResetDate: todayStr
+              };
+              profile.streakDays = nextStreak;
+              profile.dailyStatus = status;
+              profile.lastAccessDate = todayStr;
+              await setDoc(userDocRef, profile);
+            }
+
+            setDailyStatus({
+              lessonCompleted: status.lessonCompleted,
+              bibleCompleted: status.bibleCompleted,
+              reflectionCompleted: status.reflectionCompleted,
+              missionCompleted: status.missionCompleted,
+            });
+
           } else {
             profile = {
               id: uid,
@@ -149,16 +198,29 @@ export default function App() {
               xpNeededForNextLevel: 500,
               totalPoints: 0,
               streakDays: 1,
-              lastAccessDate: new Date().toISOString().split('T')[0],
-              createdAt: new Date().toISOString().split('T')[0],
+              lastAccessDate: todayStr,
+              createdAt: todayStr,
               bibleReadingsCount: 0,
               completedMissionsCount: 0,
               reflectionsCount: 0,
               lessonsStudiedCount: 0,
               church: 'Bonsucesso',
               role: (firebaseUser.email && firebaseUser.email.toLowerCase() === 'rickyjorgecastro@gmail.com') ? 'admin' : 'user',
+              dailyStatus: {
+                lessonCompleted: false,
+                bibleCompleted: false,
+                reflectionCompleted: false,
+                missionCompleted: false,
+                lastResetDate: todayStr
+              }
             };
             await setDoc(userDocRef, profile);
+            setDailyStatus({
+              lessonCompleted: false,
+              bibleCompleted: false,
+              reflectionCompleted: false,
+              missionCompleted: false,
+            });
           }
           setUser(profile);
           setIsOnboarded(true);
@@ -376,7 +438,8 @@ export default function App() {
     xpAmount: number, 
     activityType: ActivityHistory['type'], 
     title: string, 
-    observation?: string
+    observation?: string,
+    updatedDailyStatus?: UserProfileData['dailyStatus']
   ) => {
     if (!user) return;
 
@@ -415,7 +478,14 @@ export default function App() {
       bibleReadingsCount: updatedBibleReadingsCount,
       completedMissionsCount: updatedCompletedMissionsCount,
       reflectionsCount: updatedReflectionsCount,
-      lessonsStudiedCount: updatedLessonsStudiedCount
+      lessonsStudiedCount: updatedLessonsStudiedCount,
+      dailyStatus: updatedDailyStatus || user.dailyStatus || {
+        lessonCompleted: dailyStatus.lessonCompleted,
+        bibleCompleted: dailyStatus.bibleCompleted,
+        reflectionCompleted: dailyStatus.reflectionCompleted,
+        missionCompleted: dailyStatus.missionCompleted,
+        lastResetDate: new Date().toISOString().split('T')[0]
+      }
     };
 
     // Auto-examine and unlock medals
@@ -441,7 +511,8 @@ export default function App() {
       activityType: ActivityHistory['type'];
       title: string;
       observation?: string;
-    }[]
+    }[],
+    updatedDailyStatus?: UserProfileData['dailyStatus']
   ) => {
     if (!user || rewards.length === 0) return;
 
@@ -513,7 +584,14 @@ export default function App() {
       bibleReadingsCount: currentBibleReadingsCount,
       completedMissionsCount: currentCompletedMissionsCount,
       reflectionsCount: currentReflectionsCount,
-      lessonsStudiedCount: currentLessonsStudiedCount
+      lessonsStudiedCount: currentLessonsStudiedCount,
+      dailyStatus: updatedDailyStatus || user.dailyStatus || {
+        lessonCompleted: dailyStatus.lessonCompleted,
+        bibleCompleted: dailyStatus.bibleCompleted,
+        reflectionCompleted: dailyStatus.reflectionCompleted,
+        missionCompleted: dailyStatus.missionCompleted,
+        lastResetDate: new Date().toISOString().split('T')[0]
+      }
     };
 
     // Auto-examine and unlock medals
@@ -695,7 +773,12 @@ export default function App() {
     if (!user) return;
     setLessons((prev) => prev.map((l) => l.id === lessonId ? { ...l, completed: true, answer } : l));
 
-    setDailyStatus((prev) => ({ ...prev, lessonCompleted: true }));
+    const updatedStatus = {
+      ...dailyStatus,
+      lessonCompleted: true,
+      lastResetDate: new Date().toISOString().split('T')[0]
+    };
+    setDailyStatus(updatedStatus);
 
     try {
       await setDoc(doc(db, 'users', user.id, 'lessons', lessonId), {
@@ -711,14 +794,19 @@ export default function App() {
     await handleAwardMultipleXp([
       { xpAmount: 10, activityType: 'lição', title: 'Estudo de Lição Sabatina', observation: 'Marcar estudo como lido.' },
       { xpAmount: 15, activityType: 'reflexão', title: 'Anotação de Aprendizado', observation: `Resposta: "${answer.slice(0, 50)}..."` }
-    ]);
+    ], updatedStatus);
   };
 
   const handleCompleteBibleReading = async (readingId: string) => {
     if (!user) return;
     setBibleReadings((prev) => prev.map((r) => r.id === readingId ? { ...r, completed: true } : r));
 
-    setDailyStatus((prev) => ({ ...prev, bibleCompleted: true }));
+    const updatedStatus = {
+      ...dailyStatus,
+      bibleCompleted: true,
+      lastResetDate: new Date().toISOString().split('T')[0]
+    };
+    setDailyStatus(updatedStatus);
 
     try {
       await setDoc(doc(db, 'users', user.id, 'bible', readingId), {
@@ -731,7 +819,7 @@ export default function App() {
     }
 
     const passage = bibleReadings.find(r => r.id === readingId)?.passage || 'Passagem da Bíblia';
-    await handleAwardXp(10, 'bíblia', `Leitura Bíblica: ${passage}`);
+    await handleAwardXp(10, 'bíblia', `Leitura Bíblica: ${passage}`, undefined, updatedStatus);
   };
 
   const handleSaveReflection = async (content: string, type: 'oração' | 'aprendizado' | 'gratidão' | 'reflexão') => {
@@ -744,7 +832,12 @@ export default function App() {
     };
 
     setReflections((prev) => [newRef, ...prev]);
-    setDailyStatus((prev) => ({ ...prev, reflectionCompleted: true }));
+    const updatedStatus = {
+      ...dailyStatus,
+      reflectionCompleted: true,
+      lastResetDate: new Date().toISOString().split('T')[0]
+    };
+    setDailyStatus(updatedStatus);
 
     try {
       await setDoc(doc(db, 'users', user.id, 'reflections', newRef.id), newRef);
@@ -752,7 +845,7 @@ export default function App() {
       handleFirestoreError(e, OperationType.WRITE, `users/${user.id}/reflections/${newRef.id}`);
     }
 
-    await handleAwardXp(15, 'reflexão', `Reflexão do Diário: ${type.toUpperCase()}`, content);
+    await handleAwardXp(15, 'reflexão', `Reflexão do Diário: ${type.toUpperCase()}`, content, updatedStatus);
   };
 
   const handleDeleteReflection = async (id: string) => {
@@ -774,7 +867,12 @@ export default function App() {
     if (!targetMission) return;
 
     setMissions((prev) => prev.map((m) => m.id === missionId ? { ...m, completedCount: m.completedCount + 1 } : m));
-    setDailyStatus((prev) => ({ ...prev, missionCompleted: true }));
+    const updatedStatus = {
+      ...dailyStatus,
+      missionCompleted: true,
+      lastResetDate: new Date().toISOString().split('T')[0]
+    };
+    setDailyStatus(updatedStatus);
 
     const logId = `mission-log-${Date.now()}`;
     const missionLog = {
@@ -796,7 +894,8 @@ export default function App() {
       targetMission.xpReward, 
       'missão', 
       `Ação Missionária: ${targetMission.title}`, 
-      notes || 'Concluído sem observações'
+      notes || 'Concluído sem observações',
+      updatedStatus
     );
   };
 
@@ -928,10 +1027,20 @@ export default function App() {
       triggerToast('⚠️ Nenhuma atividade foi feita hoje. Sua sequência foi resetada para 1 dia.');
     }
 
+    const todayStr = new Date().toISOString().split('T')[0];
+    const clearedStatus = {
+      lessonCompleted: false,
+      bibleCompleted: false,
+      reflectionCompleted: false,
+      missionCompleted: false,
+      lastResetDate: todayStr
+    };
+
     const updatedUser: UserProfileData = {
       ...user,
       streakDays: nextStreak,
-      lastAccessDate: new Date().toISOString().split('T')[0]
+      lastAccessDate: todayStr,
+      dailyStatus: clearedStatus
     };
 
     setUser(updatedUser);
@@ -974,6 +1083,7 @@ export default function App() {
               if (action === 'path') setActiveTab('path');
               if (action === 'medals') setActiveTab('medals');
               if (action === 'admin') setActiveTab('admin');
+              if (action === 'assessment') setActiveTab('assessment');
             }}
             isAdminUser={isAdminUser}
           />
@@ -1043,6 +1153,29 @@ export default function App() {
             onUpdateMission={handleUpdateMissionAdmin}
             onModifyUserXp={handleModifyUserXpAdmin}
             onToggleUserAdminRole={handleToggleUserAdminRole}
+          />
+        );
+      case 'discipulador':
+        return (
+          <DiscipuladorPanel
+            currentUserId={user.id}
+            currentUserFullName={user.fullName}
+          />
+        );
+      case 'assessment':
+        return (
+          <SpiritualAssessmentView
+            userId={user.id}
+            userEmail={user.email}
+            userFullName={user.fullName}
+            onAwardXp={handleAwardXp}
+            onCompleted={() => {
+              getDoc(doc(db, 'users', user.id)).then((docSnap) => {
+                if (docSnap.exists()) {
+                  setUser(docSnap.data() as UserProfileData);
+                }
+              });
+            }}
           />
         );
       default:
@@ -1175,6 +1308,21 @@ export default function App() {
                 title="Ir p/ Painel de Admin"
               >
                 <ShieldAlert className="w-4 h-4" />
+              </button>
+            )}
+
+            {user && (user.role === 'discipulador' || user.role === 'pastor') && (
+              <button
+                id="header-btn-discipulador"
+                onClick={() => setActiveTab(activeTab === 'discipulador' ? 'dashboard' : 'discipulador')}
+                className={`p-2 rounded-xl transition-all border cursor-pointer ${
+                  activeTab === 'discipulador'
+                    ? 'bg-emerald-500/15 text-emerald-350 border-emerald-500/30'
+                    : 'bg-[#0a1a30] text-slate-350 border-[#1a2d44] hover:text-emerald-400'
+                }`}
+                title="Ir p/ Painel do Discipulador"
+              >
+                <Users className="w-4 h-4" />
               </button>
             )}
 

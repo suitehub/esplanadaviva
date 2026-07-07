@@ -18,7 +18,23 @@ export interface UserProfileData {
   reflectionsCount: number; // For achievements
   lessonsStudiedCount: number; // For achievements
   church?: string; // Church selected during login/registration
-  role?: 'user' | 'admin';
+  role?: 'pastor' | 'discipulador' | 'discípulo' | 'admin' | 'user';
+  discipuladorId?: string;
+  discipuladorName?: string;
+  lastAssessmentDate?: string;
+  lastAssessmentScores?: {
+    comunhao: number;
+    relacionamento: number;
+    fidelidade: number;
+    missao: number;
+  };
+  dailyStatus?: {
+    lessonCompleted: boolean;
+    bibleCompleted: boolean;
+    reflectionCompleted: boolean;
+    missionCompleted: boolean;
+    lastResetDate: string;
+  };
   
   // Notification Sync properties
   remindLesson?: boolean;

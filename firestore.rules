@@ -17,101 +17,156 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+      return id is string && id.size() <= 128;
     }
 
     // Resolves role of requester using a live document read
     function isUserAdmin(uid) {
-      return (exists(/databases/$(database)/documents/users/$(uid)) &&
-              get(/databases/$(database)/documents/users/$(uid)).data.get('role', 'user') == 'admin') ||
-             (request.auth != null && 
+      return (request.auth != null && 
               'email' in request.auth.token && 
               (request.auth.token.email.toLowerCase() == 'rickyjorgecastro@gmail.com' ||
-               request.auth.token.email.toLowerCase() == 'admin@discipulado.com'));
+               request.auth.token.email.toLowerCase() == 'admin@discipulado.com')) ||
+             (exists(/databases/$(database)/documents/users/$(uid)) &&
+              get(/databases/$(database)/documents/users/$(uid)).data.get('role', 'user') == 'admin');
+    }
+
+    // Resolves if requester is a Pastor
+    function isPastor(uid) {
+      return (request.auth != null && 
+              'email' in request.auth.token && 
+              (request.auth.token.email.toLowerCase() == 'rickyjorgecastro@gmail.com' ||
+               request.auth.token.email.toLowerCase() == 'pastor@esplanadaviva.com' ||
+               request.auth.token.email.toLowerCase() == 'pastor@discipulado.com')) ||
+             (exists(/databases/$(database)/documents/users/$(uid)) &&
+              get(/databases/$(database)/documents/users/$(uid)).data.get('role', 'user') == 'pastor');
+    }
+
+    // Resolves if uid is a leader (owner, admin, pastor, or direct discipulador) of userId
+    function isLeader(uid, userId) {
+      return request.auth != null && (
+        uid == userId || 
+        isUserAdmin(uid) || 
+        isPastor(uid) ||
+        (exists(/databases/$(database)/documents/users/$(userId)) &&
+         get(/databases/$(database)/documents/users/$(userId)).data.get('discipuladorId', '') == uid)
+      );
     }
 
     // --- USER PROFILES ---
     match /users/{userId} {
-      allow get: if isOwner(userId) || isUserAdmin(request.auth.uid);
-      allow list: if isSignedIn() && isUserAdmin(request.auth.uid);
+      allow get: if isLeader(request.auth.uid, userId);
+      allow list: if isSignedIn() && (
+        isUserAdmin(request.auth.uid) || 
+        isPastor(request.auth.uid) || 
+        resource.data.get('discipuladorId', '') == request.auth.uid
+      );
       
       // Let any signed-in user register their own profile initially as standard role, or any role if they have the specific developer admin email
       allow create: if isOwner(userId) && 
                       (!request.resource.data.keys().hasAll(['role']) || 
-                       request.resource.data.role == 'user' || 
-                       request.resource.data.get('email', '') == 'rickyjorgecastro@gmail.com');
+                       request.resource.data.get('role', 'user') == 'discípulo' || 
+                       (request.auth != null && 'email' in request.auth.token && request.auth.token.email.toLowerCase() == 'rickyjorgecastro@gmail.com'));
       
       // Allow updates to own profile, but shield the "role" field from being escalated by the member, unless they have the developer admin email
       allow update: if (isOwner(userId) && 
                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || 
-                         resource.data.role == 'admin' || 
-                         request.resource.data.get('email', '') == 'rickyjorgecastro@gmail.com')) 
-                      || isUserAdmin(request.auth.uid);
+                         resource.data.get('role', 'user') == 'admin' || 
+                         (request.auth != null && 'email' in request.auth.token && request.auth.token.email.toLowerCase() == 'rickyjorgecastro@gmail.com'))) 
+                      || isUserAdmin(request.auth.uid)
+                      || isPastor(request.auth.uid);
       
-      allow delete: if isUserAdmin(request.auth.uid);
+      allow delete: if isUserAdmin(request.auth.uid) || isPastor(request.auth.uid);
 
       // --- SUBCOLLECTIONS WITHIN MEMBER DIRECTORIES ---
 
       // Sabbath lessons completed by the member
       match /lessons/{lessonId} {
-        allow read: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow read: if isLeader(request.auth.uid, userId);
         allow create, update: if isOwner(userId) && isValidId(lessonId);
-        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid) || isPastor(request.auth.uid);
       }
 
       // Bible readings finished
       match /bible/{readingId} {
-        allow read: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow read: if isLeader(request.auth.uid, userId);
         allow create, update: if isOwner(userId) && isValidId(readingId);
-        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid) || isPastor(request.auth.uid);
       }
 
       // Author prayers & reflections journal
       match /reflections/{reflectionId} {
-        allow read: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow read: if isLeader(request.auth.uid, userId);
         allow create, update: if isOwner(userId) && isValidId(reflectionId);
-        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid) || isPastor(request.auth.uid);
       }
 
       // Logs of completed missionary objectives
       match /completedMissions/{logId} {
-        allow read: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow read: if isLeader(request.auth.uid, userId);
         allow create, update: if isOwner(userId) && isValidId(logId);
-        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid) || isPastor(request.auth.uid);
       }
 
       // Medals acquired
       match /medals/{medalId} {
-        allow read: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow read: if isLeader(request.auth.uid, userId);
         allow create, update: if isOwner(userId) && isValidId(medalId);
-        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid) || isPastor(request.auth.uid);
       }
 
       // Progression log milestones (XP updates detail logger)
       match /logs/{logId} {
-        allow read: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow read: if isLeader(request.auth.uid, userId);
         allow create, update: if isOwner(userId) && isValidId(logId);
-        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid);
+        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid) || isPastor(request.auth.uid);
+      }
+
+      // Spiritual maturity assessment results
+      match /assessments/{assessmentId} {
+        allow read: if isLeader(request.auth.uid, userId);
+        allow create, update: if isOwner(userId) && isValidId(assessmentId);
+        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid) || isPastor(request.auth.uid);
       }
     }
 
     // --- GLOBAL CHALLENGES / MISSIONS REPOSITORY ---
     match /challenges/{challengeId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && isUserAdmin(request.auth.uid);
+      allow write: if isSignedIn() && (isUserAdmin(request.auth.uid) || isPastor(request.auth.uid));
     }
 
     // --- COMMUNITY PRAYER WALL ---
     match /prayers/{prayerId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(prayerId) && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(prayerId) && request.resource.data.get('userId', '') == request.auth.uid;
       allow update: if isSignedIn() && isValidId(prayerId) && (
         // Case 1: Creator of the prayer can edit/update it
-        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) ||
+        (resource.data.get('userId', '') == request.auth.uid && request.resource.data.get('userId', '') == request.auth.uid) ||
         // Case 2: Other members can toggle intercede (affecting only count or list of users)
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prayinCount', 'prayingUsers']))
       );
-      allow delete: if isSignedIn();
+      allow delete: if isSignedIn() && (
+        resource.data.get('userId', '') == request.auth.uid || 
+        isUserAdmin(request.auth.uid) || 
+        isPastor(request.auth.uid)
+      );
+    }
+
+    // --- ACCESS INVITATION CODES ---
+    match /invites/{inviteId} {
+      allow get: if true; // Anyone (even unauthenticated guests registering) can retrieve an invitation code to verify it
+      allow list: if isSignedIn() && (
+        resource.data.get('createdById', '') == request.auth.uid || 
+        isUserAdmin(request.auth.uid) || 
+        isPastor(request.auth.uid)
+      );
+      allow create: if isSignedIn() && isValidId(inviteId);
+      allow update: if isSignedIn() && isValidId(inviteId);
+      allow delete: if isSignedIn() && (
+        resource.data.get('createdById', '') == request.auth.uid || 
+        isUserAdmin(request.auth.uid) || 
+        isPastor(request.auth.uid)
+      );
     }
   }
 }

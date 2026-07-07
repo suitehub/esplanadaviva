@@ -10,9 +10,9 @@ import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  sendPasswordResetEmail 
+  sendPasswordResetEmail,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -22,6 +22,7 @@ interface AuthScreenProps {
 
 export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [isLogin, setIsLogin] = useState(true);
+  const [registerRole, setRegisterRole] = useState<'discípulo' | 'discipulador'>('discípulo');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,6 +34,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [recoverSuccess, setRecoverSuccess] = useState(false);
   const [church, setChurch] = useState('Bonsucesso');
   const [loading, setLoading] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
 
   const CHURCHES = [
     'Bonsucesso',
@@ -109,12 +111,61 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           onAuthSuccess(fallbackUser);
         }
       } else {
+        const emailLower = email.trim().toLowerCase();
+        const isPastorEmail = emailLower === 'rickyjorgecastro@gmail.com' || emailLower === 'pastor@esplanadaviva.com' || emailLower === 'pastor@discipulado.com';
+        
+        let roleGranted: 'pastor' | 'discipulador' | 'discípulo' | 'admin' = 'discípulo';
+        let discipuladorId: string | undefined = undefined;
+        let discipuladorName: string | undefined = undefined;
+
+        if (isPastorEmail) {
+          roleGranted = 'pastor';
+        } else {
+          if (!inviteCode) {
+            setError('Código de Convite é obrigatório para registrar-se no Distrito.');
+            setLoading(false);
+            return;
+          }
+          const inviteDocRef = doc(db, 'invites', inviteCode.trim().toUpperCase());
+          const inviteDocSnap = await getDoc(inviteDocRef);
+          if (!inviteDocSnap.exists()) {
+            setError('Código de Convite inválido ou inexistente.');
+            setLoading(false);
+            return;
+          }
+          const inviteData = inviteDocSnap.data();
+          if (inviteData.status !== 'pending' && !inviteData.isFixed) {
+            setError('Este Código de Convite já foi utilizado.');
+            setLoading(false);
+            return;
+          }
+
+          roleGranted = inviteData.type;
+          
+          if (registerRole === 'discípulo' && roleGranted !== 'discípulo') {
+            setError('Este código de convite é de Discipulador. Se deseja registrar-se como Discipulador, selecione a opção "Registro de Discipulador" acima.');
+            setLoading(false);
+            return;
+          }
+          if (registerRole === 'discipulador' && roleGranted !== 'discipulador') {
+            setError('Este código de convite é de Discípulo. Se deseja registrar-se como Discípulo, selecione a opção "Registro de Discípulo" acima.');
+            setLoading(false);
+            return;
+          }
+
+          if (roleGranted === 'discípulo') {
+            discipuladorId = inviteData.createdById;
+            discipuladorName = inviteData.createdByName;
+          }
+        }
+
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = userCred.user.uid;
+        
         const initialUser: UserProfileData = {
           id: uid,
           fullName: fullName,
-          email: email.toLowerCase(),
+          email: emailLower,
           gender: gender,
           avatarUrl: gender === 'masculino' ? 'male' : 'female',
           level: 1,
@@ -136,9 +187,27 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           clothingColor: '#004b87',
           hasBeard: false,
           hasGlasses: false,
-          role: (email.toLowerCase() === 'rickyjorgecastro@gmail.com') ? 'admin' : 'user',
+          role: roleGranted,
+          discipuladorId,
+          discipuladorName,
         };
+
         await setDoc(doc(db, 'users', uid), initialUser);
+
+        if (!isPastorEmail && inviteCode) {
+          const inviteDocRef = doc(db, 'invites', inviteCode.trim().toUpperCase());
+          const inviteDocSnap = await getDoc(inviteDocRef);
+          const inviteData = inviteDocSnap.exists() ? inviteDocSnap.data() : null;
+          if (inviteData && !inviteData.isFixed) {
+            await setDoc(inviteDocRef, {
+              status: 'used',
+              usedByEmail: emailLower,
+              usedById: uid,
+              usedAt: new Date().toISOString()
+            }, { merge: true });
+          }
+        }
+
         onAuthSuccess(initialUser);
       }
     } catch (err: any) {
@@ -170,33 +239,40 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       if (profileDoc.exists()) {
         onAuthSuccess(profileDoc.data() as UserProfileData);
       } else {
-        const initialUser: UserProfileData = {
-          id: uid,
-          fullName: nameVal,
-          email: emailVal.toLowerCase(),
-          gender: 'masculino',
-          avatarUrl: 'male',
-          level: 1,
-          xp: 0,
-          xpNeededForNextLevel: 500,
-          totalPoints: 0,
-          streakDays: 1,
-          lastAccessDate: new Date().toISOString().split('T')[0],
-          createdAt: new Date().toISOString().split('T')[0],
-          bibleReadingsCount: 0,
-          completedMissionsCount: 0,
-          reflectionsCount: 0,
-          lessonsStudiedCount: 0,
-          church: church,
-          skinColor: '#FED7AA',
-          hairStyle: 'short',
-          hairColor: '#111827',
-          eyeStyle: 'open',
-          clothingColor: '#004b87',
-          role: (emailVal.toLowerCase() === 'rickyjorgecastro@gmail.com') ? 'admin' : 'user',
-        };
-        await setDoc(doc(db, 'users', uid), initialUser);
-        onAuthSuccess(initialUser);
+        const emailLower = emailVal.toLowerCase();
+        const isPastorEmail = emailLower === 'rickyjorgecastro@gmail.com' || emailLower === 'pastor@esplanadaviva.com' || emailLower === 'pastor@discipulado.com';
+        
+        if (isPastorEmail) {
+          const initialUser: UserProfileData = {
+            id: uid,
+            fullName: nameVal,
+            email: emailLower,
+            gender: 'masculino',
+            avatarUrl: 'male',
+            level: 1,
+            xp: 0,
+            xpNeededForNextLevel: 500,
+            totalPoints: 0,
+            streakDays: 1,
+            lastAccessDate: new Date().toISOString().split('T')[0],
+            createdAt: new Date().toISOString().split('T')[0],
+            bibleReadingsCount: 0,
+            completedMissionsCount: 0,
+            reflectionsCount: 0,
+            lessonsStudiedCount: 0,
+            church: church,
+            skinColor: '#FED7AA',
+            hairStyle: 'short',
+            hairColor: '#111827',
+            eyeStyle: 'open',
+            clothingColor: '#004b87',
+            role: 'pastor',
+          };
+          await setDoc(doc(db, 'users', uid), initialUser);
+          onAuthSuccess(initialUser);
+        } else {
+          setError('Seu e-mail não possui cadastro no distrito. Registre-se usando o formulário de cadastro com o seu Código de Convite.');
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -569,8 +645,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                       <path d="M 32 34 C 20 28, 22 10, 36 8 C 42 2, 58 2, 64 8 C 74 6, 78 18, 70 28 C 74 32, 70 42, 64 42 C 60 43, 40 43, 32 34 Z" fill="#1e2937" stroke="#1c1917" strokeWidth="2.5" />
                       {/* Spikes highlights */}
                       <path d="M34 14 Q28 8 32 4" stroke="#1c1917" strokeWidth="2.2" fill="none" strokeLinecap="round" />
-                      <path d="M48 8 Q44 2 46 1" stroke="#1c1917" strokeWidth="2.2" fill="none" stroke-linecap="round" />
-                      <path d="M60 10 Q64 4 61 2" stroke="#1c1917" strokeWidth="2.2" fill="none" stroke-linecap="round" />
+                      <path d="M48 8 Q44 2 46 1" stroke="#1c1917" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+                      <path d="M60 10 Q64 4 61 2" stroke="#1c1917" strokeWidth="2.2" fill="none" strokeLinecap="round" />
                     </g>
                   </g>
                 </svg>
@@ -791,25 +867,59 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                   className="space-y-4"
                 >
                   {!isLogin && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.05 }}
-                    >
-                      <label id="lbl-fullname" className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1.5 font-mono">Nome Completo</label>
-                      <div className="relative">
-                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-stone-400" />
-                        <input
-                          id="inp-fullname"
-                          type="text"
-                          placeholder="Ex: Guilherme Augusto"
-                          value={fullName}
-                          required
-                          onChange={(e) => setFullName(e.target.value)}
-                          className="w-full bg-[#FAF8F5] border border-stone-250/70 focus:border-[#b48a30] focus:ring-4 focus:ring-[#b48a30]/10 rounded-2xl pl-10 pr-4 py-2.5 text-xs sm:text-sm outline-none transition-all placeholder:text-stone-400 text-stone-850 font-semibold shadow-inner"
-                        />
-                      </div>
-                    </motion.div>
+                    <>
+                      {/* Segmented control to choose between Discípulo and Discipulador registration */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-stone-100/80 p-1 rounded-2xl grid grid-cols-2 gap-1 border border-stone-200/60 mb-4"
+                      >
+                        <button
+                          id="btn-register-role-discipulo"
+                          type="button"
+                          onClick={() => setRegisterRole('discípulo')}
+                          className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                            registerRole === 'discípulo'
+                              ? 'bg-[#004b87] text-white shadow-sm'
+                              : 'text-stone-500 hover:text-[#004b87]'
+                          }`}
+                        >
+                          📖 Discípulo
+                        </button>
+                        <button
+                          id="btn-register-role-discipulador"
+                          type="button"
+                          onClick={() => setRegisterRole('discipulador')}
+                          className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                            registerRole === 'discipulador'
+                              ? 'bg-[#004b87] text-white shadow-sm'
+                              : 'text-stone-500 hover:text-[#004b87]'
+                          }`}
+                        >
+                          👥 Discipulador
+                        </button>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.05 }}
+                      >
+                        <label id="lbl-fullname" className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1.5 font-mono">Nome Completo</label>
+                        <div className="relative">
+                          <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-stone-400" />
+                          <input
+                            id="inp-fullname"
+                            type="text"
+                            placeholder="Ex: Guilherme Augusto"
+                            value={fullName}
+                            required
+                            onChange={(e) => setFullName(e.target.value)}
+                            className="w-full bg-[#FAF8F5] border border-stone-250/70 focus:border-[#b48a30] focus:ring-4 focus:ring-[#b48a30]/10 rounded-2xl pl-10 pr-4 py-2.5 text-xs sm:text-sm outline-none transition-all placeholder:text-stone-400 text-stone-850 font-semibold shadow-inner"
+                          />
+                        </div>
+                      </motion.div>
+                    </>
                   )}
 
                   <motion.div
@@ -887,6 +997,29 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                             <option key={ch} value={ch} className="bg-white text-stone-800 py-2">{ch}</option>
                           ))}
                         </select>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label id="lbl-invite-code" className="block text-[10px] font-bold text-[#b48a30] uppercase tracking-widest mb-1.5 font-mono">
+                          {registerRole === 'discípulo' ? 'Código de Convite do Discípulo' : 'Código de Convite do Discipulador'}
+                        </label>
+                        <div className="relative">
+                          <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-stone-400" />
+                          <input
+                            id="inp-invite-code"
+                            type="text"
+                            required
+                            placeholder={registerRole === 'discípulo' ? 'Ex: SILVA-1234 (Solicite ao seu discipulador)' : 'Ex: PASTOR-1234 (Solicite ao seu pastor)'}
+                            value={inviteCode}
+                            onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                            className="w-full bg-[#FAF8F5] border border-[#b48a30]/40 focus:border-[#b48a30] focus:ring-4 focus:ring-[#b48a30]/10 rounded-2xl pl-10 pr-4 py-2.5 text-xs sm:text-sm outline-none transition-all placeholder:text-stone-400 text-stone-850 font-semibold shadow-inner"
+                          />
+                        </div>
+                        <span className="text-[10px] text-stone-400 leading-normal block mt-1">
+                          {registerRole === 'discípulo' 
+                            ? 'O discipulado é um ambiente de crescimento espiritual. Solicite seu convite de discípulo ao seu discipulador.' 
+                            : 'O papel de discipulador requer um convite de discipulador gerado pelo pastor no painel administrativo.'}
+                        </span>
                       </div>
                     </motion.div>
                   )}
@@ -980,6 +1113,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               </svg>
               Conectar com a conta Google
             </motion.button>
+
+
           </div>
 
           <div className="text-center mt-6">

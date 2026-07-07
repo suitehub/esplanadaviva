@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, PlusCircle, ToggleLeft, ToggleRight, Edit, Users, Activity, X, ShieldAlert, Check, Search, Filter, BookOpen, Star, Flame, Trophy, Award, Landmark, Eye, Heart, Calendar } from 'lucide-react';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { Shield, PlusCircle, ToggleLeft, ToggleRight, Edit, Users, Activity, X, ShieldAlert, Check, Search, Filter, BookOpen, Star, Flame, Trophy, Award, Landmark, Eye, Heart, Calendar, Compass, Clipboard, Key, CheckCircle, Clock } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, query, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { MissionChallenge, UserProfileData } from '../types';
 import AvatarOfProgress from './AvatarOfProgress';
 
@@ -25,7 +25,16 @@ export default function AdminPanel({
   onToggleUserAdminRole,
 }: AdminPanelProps) {
   // Set default tab to 'dashboard' as requested to show the graphical stats interface first
-  const [adminTab, setAdminTab] = useState<'dashboard' | 'usuarios' | 'missoes'>('dashboard');
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'usuarios' | 'missoes' | 'convites'>('dashboard');
+
+  // Invites states
+  const [allInvites, setAllInvites] = useState<any[]>([]);
+  const [inviteCodePrefix, setInviteCodePrefix] = useState('');
+  const [inviteIsFixed, setInviteIsFixed] = useState(false); // false = unique, true = fixed (reusable)
+  const [invitePreassignedName, setInvitePreassignedName] = useState('');
+  const [inviteSuccessMsg, setInviteSuccessMsg] = useState('');
+  const [inviteError, setInviteError] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   // Interactive District Dashboard States
   const [selectedDashboardChurch, setSelectedDashboardChurch] = useState<string>('Todas');
@@ -54,9 +63,49 @@ export default function AdminPanel({
   const [selectedReflections, setSelectedReflections] = useState<any[]>([]);
   const [selectedMissions, setSelectedMissions] = useState<any[]>([]);
   const [selectedLogs, setSelectedLogs] = useState<any[]>([]);
+  const [selectedAssessments, setSelectedAssessments] = useState<any[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
-  const [currentSelectedTab, setCurrentSelectedTab] = useState<'lessons' | 'reflections' | 'missions' | 'bible' | 'logs'>('lessons');
+  const [currentSelectedTab, setCurrentSelectedTab] = useState<'lessons' | 'reflections' | 'missions' | 'bible' | 'logs' | 'assessments'>('lessons');
+
+  // Pastor Feedback states
+  const [pastorFeedbackText, setPastorFeedbackText] = useState('');
+  const [pastorFeedbackLoading, setPastorFeedbackLoading] = useState(false);
+  const [pastorFeedbackSuccess, setPastorFeedbackSuccess] = useState(false);
+
+  // Sync pastor feedback field when member is selected
+  useEffect(() => {
+    if (selectedMember) {
+      setPastorFeedbackText(selectedMember.pastorFeedback || '');
+      setPastorFeedbackSuccess(false);
+    }
+  }, [selectedMember]);
+
+  const handleSavePastorFeedback = async () => {
+    if (!selectedMember) return;
+    setPastorFeedbackLoading(true);
+    setPastorFeedbackSuccess(false);
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      await setDoc(doc(db, 'users', selectedMember.id), {
+        pastorFeedback: pastorFeedbackText,
+        pastorFeedbackDate: todayStr
+      }, { merge: true });
+      
+      // Update local modal state to reflect saved feedback immediately
+      setSelectedMember(prev => prev ? { 
+        ...prev, 
+        pastorFeedback: pastorFeedbackText,
+        pastorFeedbackDate: todayStr
+      } : null);
+      
+      setPastorFeedbackSuccess(true);
+    } catch (err) {
+      console.error("Erro ao salvar feedback do pastor:", err);
+    } finally {
+      setPastorFeedbackLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!selectedMember) {
@@ -65,6 +114,7 @@ export default function AdminPanel({
       setSelectedReflections([]);
       setSelectedMissions([]);
       setSelectedLogs([]);
+      setSelectedAssessments([]);
       setDetailsError(null);
       return;
     }
@@ -75,12 +125,13 @@ export default function AdminPanel({
       const uid = selectedMember.id;
 
       try {
-        const [lessonsSnap, bibleSnap, reflectionsSnap, missionsSnap, logsSnap] = await Promise.all([
+        const [lessonsSnap, bibleSnap, reflectionsSnap, missionsSnap, logsSnap, assessmentsSnap] = await Promise.all([
           getDocs(collection(db, 'users', uid, 'lessons')),
           getDocs(collection(db, 'users', uid, 'bible')),
           getDocs(collection(db, 'users', uid, 'reflections')),
           getDocs(collection(db, 'users', uid, 'completedMissions')),
           getDocs(collection(db, 'users', uid, 'logs')),
+          getDocs(collection(db, 'users', uid, 'assessments')),
         ]);
 
         const lessonsList: any[] = [];
@@ -114,6 +165,13 @@ export default function AdminPanel({
         logsList.sort((a, b) => b.id.localeCompare(a.id));
         setSelectedLogs(logsList);
 
+        const assessmentsList: any[] = [];
+        assessmentsSnap.forEach((docSnap) => {
+          assessmentsList.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        assessmentsList.sort((a, b) => b.date.localeCompare(a.date));
+        setSelectedAssessments(assessmentsList);
+
         // Auto-heal mismatches in counter attributes to make sure the stats cards and list always match raw subcollections!
         const correctLessonsCount = lessonsList.length;
         const correctBibleCount = bibleList.length;
@@ -145,6 +203,91 @@ export default function AdminPanel({
 
     fetchMemberSubcollections();
   }, [selectedMember]);
+
+  // Realtime subscription to invites
+  useEffect(() => {
+    const qInvites = query(collection(db, 'invites'));
+    const unsubscribe = onSnapshot(qInvites, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      // Sort: fixed first, then newest
+      list.sort((a, b) => {
+        if (a.isFixed && !b.isFixed) return -1;
+        if (!a.isFixed && b.isFixed) return 1;
+        const dateA = a.createdAt ? new Date(a.createdAt.split('/').reverse().join('-')).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt.split('/').reverse().join('-')).getTime() : 0;
+        return dateB - dateA;
+      });
+      setAllInvites(list);
+    }, (error) => {
+      try {
+        handleFirestoreError(error, OperationType.GET, 'invites');
+      } catch (e) {
+        console.error("Erro ao assinar convites:", e);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGenerateInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInviteError('');
+    setInviteSuccessMsg('');
+    setInviteLoading(true);
+
+    const prefixClean = inviteCodePrefix.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!prefixClean) {
+      setInviteError('Por favor, informe um código ou iniciais para o convite (Ex: MARCOS ou COORDENADOR).');
+      setInviteLoading(false);
+      return;
+    }
+
+    let generatedCode = prefixClean;
+    if (!inviteIsFixed) {
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      generatedCode = `${prefixClean}-${randomSuffix}`;
+    }
+
+    const pathForWrite = 'invites';
+    try {
+      const docRef = doc(db, 'invites', generatedCode);
+      const newInvite = {
+        id: generatedCode,
+        code: generatedCode,
+        preassignedName: invitePreassignedName.trim() || undefined,
+        createdById: 'pastor-admin',
+        createdByName: 'Pastor do Distrito',
+        createdAt: new Date().toLocaleDateString('pt-BR'),
+        status: 'pending',
+        type: 'discipulador',
+        isFixed: inviteIsFixed
+      };
+
+      await setDoc(docRef, newInvite);
+      setInviteSuccessMsg(`✓ Código de Acesso ${inviteIsFixed ? 'Fixo' : 'Individual'} gerado: ${generatedCode}`);
+      setInviteCodePrefix('');
+      setInvitePreassignedName('');
+    } catch (err) {
+      console.error("Erro ao gerar convite:", err);
+      try {
+        handleFirestoreError(err, OperationType.WRITE, pathForWrite);
+      } catch (formattedErr: any) {
+        setInviteError('Erro ao registrar convite no banco de dados.');
+      }
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleDeleteInvite = async (inviteId: string) => {
+    try {
+      await deleteDoc(doc(db, 'invites', inviteId));
+    } catch (err) {
+      console.error("Erro ao deletar convite:", err);
+    }
+  };
 
   // Selected user to promote to pastor/admin
   const [userToPromoteId, setUserToPromoteId] = useState<string>('');
@@ -334,7 +477,7 @@ export default function AdminPanel({
       </div>
 
       {/* Main Administrative Tabs Switching - Styled elegantly to look cohesive */}
-      <div className="bg-[#FAF9F5] p-1.5 rounded-2xl grid grid-cols-3 gap-1 border border-[#e5e0d5]">
+      <div className="bg-[#FAF9F5] p-1.5 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-1.5 border border-[#e5e0d5]">
         <button
           id="admin-tab-btn-dashboard"
           onClick={() => setAdminTab('dashboard')}
@@ -361,6 +504,15 @@ export default function AdminPanel({
           }`}
         >
           🎯 Desafios ({challenges.length})
+        </button>
+        <button
+          id="admin-tab-btn-invites"
+          onClick={() => setAdminTab('convites')}
+          className={`py-3 text-[11px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+            adminTab === 'convites' ? 'bg-[#004b87] text-white shadow-md' : 'text-slate-500 hover:text-[#004b87]'
+          }`}
+        >
+          🔑 Convites Discipulado
         </button>
       </div>
 
@@ -857,6 +1009,238 @@ export default function AdminPanel({
         </div>
       )}
 
+      {/* 🔑 VIEW PANEL 4: INVITE CODES FOR DISCIPULADORES */}
+      {adminTab === 'convites' && (
+        <div className="space-y-6 text-left animate-fade-in">
+          {/* Informational Banner */}
+          <div className="bg-gradient-to-r from-amber-50 to-amber-500/5 border border-amber-500/25 p-5 rounded-3xl space-y-2">
+            <h4 className="text-sm font-black text-amber-900 uppercase tracking-wider flex items-center gap-2">
+              <Key className="w-5 h-5 text-amber-600" />
+              Gestão de Convites para Discipuladores
+            </h4>
+            <p className="text-xs text-amber-950/70 leading-relaxed max-w-3xl">
+              Como pastor, você pode gerar códigos de acesso que permitem que novos discipuladores se cadastrem no sistema.
+              Você tem duas opções: criar um <strong>Código Fixo (Reutilizável)</strong> para enviar a grupos ou manter como padrão, 
+              ou gerar um <strong>Código Individual</strong> para cada novo líder, permitindo o rastreamento de quem utilizou o código.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Generator Card Form */}
+            <div className="lg:col-span-5 bg-white border border-[#e5e0d5] rounded-3xl p-5 shadow-sm space-y-4 h-fit">
+              <h3 className="font-extrabold text-sm text-[#0f2646] uppercase tracking-wider border-b border-stone-100 pb-3 flex items-center gap-2">
+                <PlusCircle className="w-4.5 h-4.5 text-[#004b87]" />
+                Gerar Novo Código
+              </h3>
+
+              {inviteSuccessMsg && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl text-emerald-800 text-xs font-bold leading-relaxed flex items-start gap-2.5 animate-fade-in">
+                  <Check className="w-4.5 h-4.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p>{inviteSuccessMsg}</p>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const codeOnly = inviteSuccessMsg.split(': ')[1] || '';
+                        navigator.clipboard.writeText(codeOnly);
+                      }}
+                      className="text-[10px] text-emerald-700 underline hover:text-emerald-900 cursor-pointer flex items-center gap-1 font-mono uppercase"
+                    >
+                      <Clipboard className="w-3 h-3" /> Copiar Código
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {inviteError && (
+                <div className="bg-red-500/10 border border-red-500/30 p-3.5 rounded-2xl text-red-800 text-xs font-semibold flex items-center gap-2">
+                  <ShieldAlert className="w-4.5 h-4.5 text-red-600 shrink-0" />
+                  <span>{inviteError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleGenerateInvite} className="space-y-4">
+                {/* Code Type selection */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Tipo de Código de Acesso</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setInviteIsFixed(false)}
+                      className={`py-2.5 px-3 rounded-xl border text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                        !inviteIsFixed 
+                          ? 'bg-[#004b87]/10 border-[#004b87] text-[#004b87]' 
+                          : 'bg-[#FAF9F5] border-stone-200 text-slate-500 hover:border-stone-300'
+                      }`}
+                    >
+                      👤 Individual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInviteIsFixed(true)}
+                      className={`py-2.5 px-3 rounded-xl border text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                        inviteIsFixed 
+                          ? 'bg-amber-500/10 border-[#b48a30] text-[#b48a30]' 
+                          : 'bg-[#FAF9F5] border-stone-200 text-slate-500 hover:border-stone-300'
+                      }`}
+                    >
+                      🔄 Fixo (Reutilizável)
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-tight">
+                    {inviteIsFixed 
+                      ? '✓ Código fixo permanente. Não expira após o uso e permite múltiplos cadastros.'
+                      : '✓ Código único de uso exclusivo. Expira imediatamente assim que o primeiro discipulador se cadastrar.'
+                    }
+                  </p>
+                </div>
+
+                {/* Code Identifier / Prefix */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                    {inviteIsFixed ? 'Identificador do Código Fixo' : 'Prefixo do Código'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={20}
+                    placeholder={inviteIsFixed ? 'Ex: LIDERANCA-VIVA' : 'Ex: COORD'}
+                    value={inviteCodePrefix}
+                    onChange={(e) => setInviteCodePrefix(e.target.value.toUpperCase())}
+                    className="w-full bg-[#FAF9F5] border border-[#e5e0d5] rounded-xl px-3 py-2.5 text-xs text-[#1e293b] outline-none focus:border-[#004b87]"
+                  />
+                  <p className="text-[9px] text-slate-400 leading-tight">
+                    Apenas letras e números. {inviteIsFixed ? 'O código final será exatamente este.' : 'Será adicionado um sufixo numérico aleatório (Ex: COORD-8392).'}
+                  </p>
+                </div>
+
+                {/* Preassigned name (Optional) */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Nome do Discipulador Destinatário (Opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Pastor Auxiliar Roberto ou Diácono Marcos"
+                    value={invitePreassignedName}
+                    onChange={(e) => setInvitePreassignedName(e.target.value)}
+                    className="w-full bg-[#FAF9F5] border border-[#e5e0d5] rounded-xl px-3 py-2.5 text-xs text-[#1e293b] outline-none focus:border-[#004b87]"
+                  />
+                  <p className="text-[9px] text-slate-400 leading-tight">
+                    Ajuda você a lembrar para quem enviou ou destinou este código de convite.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={inviteLoading}
+                  className="w-full bg-gradient-to-r from-[#004b87] to-blue-800 text-white font-black py-3 px-4 rounded-xl shadow-sm hover:shadow text-xs uppercase tracking-wider cursor-pointer disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                >
+                  <Key className="w-4.5 h-4.5 text-white" />
+                  <span>{inviteLoading ? 'Criando Código...' : 'Gerar Código de Acesso'}</span>
+                </button>
+              </form>
+            </div>
+
+            {/* List of created invites */}
+            <div className="lg:col-span-7 bg-white border border-[#e5e0d5] rounded-3xl p-5 shadow-sm space-y-4">
+              <div className="flex justify-between items-center border-b border-stone-100 pb-3">
+                <h3 className="font-extrabold text-sm text-[#0f2646] uppercase tracking-wider flex items-center gap-2">
+                  <Clipboard className="w-4.5 h-4.5 text-slate-500" />
+                  Histórico de Códigos Criados ({allInvites.length})
+                </h3>
+              </div>
+
+              {allInvites.length === 0 ? (
+                <div className="text-center py-12 text-stone-400 font-medium text-xs space-y-2">
+                  <p>Nenhum código de convite para discipulador criado até o momento.</p>
+                  <p className="text-[10px] text-stone-400 leading-tight">Utilize o formulário ao lado para gerar o primeiro acesso permanente ou individual.</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                  {allInvites.map((invite) => {
+                    return (
+                      <div 
+                        key={invite.id} 
+                        className={`border p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left transition-all ${
+                          invite.isFixed 
+                            ? 'bg-amber-500/5 border-amber-200/60 hover:bg-amber-500/10' 
+                            : 'bg-stone-50 border-stone-150 hover:bg-stone-100/70'
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-sm font-black bg-white px-2.5 py-1 rounded-lg border border-stone-200 text-stone-800 shadow-sm">
+                              {invite.code}
+                            </span>
+                            {invite.isFixed ? (
+                              <span className="px-2 py-0.5 rounded text-[8px] uppercase font-black bg-amber-600 text-white shadow-sm border border-amber-700">
+                                Fixo / Reutilizável
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[8px] uppercase font-black bg-blue-600 text-white shadow-sm border border-blue-700">
+                                Individual
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 rounded text-[8px] uppercase font-black bg-slate-100 border border-slate-200 text-slate-600">
+                              Alvo: {invite.type === 'discipulador' ? 'Líder / Discipulador' : 'Discípulo'}
+                            </span>
+                          </div>
+
+                          {invite.preassignedName && (
+                            <p className="text-xs font-bold text-slate-700">
+                              Destinatário: <span className="text-[#004b87]">{invite.preassignedName}</span>
+                            </p>
+                          )}
+
+                          <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-mono flex-wrap">
+                            <span>Criado por: {invite.createdByName || 'Sistema'}</span>
+                            <span>•</span>
+                            <span>Data: {invite.createdAt}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex sm:flex-col items-start sm:items-end justify-between sm:justify-center gap-2 shrink-0 border-t sm:border-t-0 border-stone-200/50 pt-2 sm:pt-0">
+                          {invite.isFixed ? (
+                            <div className="flex items-center gap-1 text-[10px] font-extrabold text-amber-700">
+                              <CheckCircle className="w-4 h-4 text-amber-600" />
+                              <span>Permanente Ativo</span>
+                            </div>
+                          ) : invite.status === 'pending' ? (
+                            <div className="flex items-center gap-1 text-[10px] font-extrabold text-sky-700">
+                              <Clock className="w-4 h-4 text-sky-600 animate-pulse" />
+                              <span>Aguardando Cadastro</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-0.5 text-right">
+                              <span className="px-2 py-0.5 rounded text-[8px] uppercase font-black bg-emerald-500 text-white border border-emerald-600 inline-block shadow-sm">
+                                Utilizado
+                              </span>
+                              {invite.usedByEmail && (
+                                <p className="text-[9px] text-slate-500 font-mono font-bold leading-none mt-1">
+                                  {invite.usedByEmail}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteInvite(invite.id)}
+                            className="text-red-500 hover:text-red-700 p-1 bg-white border border-red-100 hover:border-red-200 rounded-lg cursor-pointer transition-colors shadow-sm ml-auto sm:ml-0 flex items-center gap-1 text-[9px] font-bold"
+                            title="Excluir Convite"
+                          >
+                            <X className="w-3.5 h-3.5" /> Revogar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CREATE CHALLENGE CHASSIS MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
@@ -1142,6 +1526,206 @@ export default function AdminPanel({
                   </div>
                 </div>
 
+                {/* 👑 Role Manager & Discipleship link */}
+                <div className="bg-[#FAF9F5] border border-[#e5e0d5] p-3 rounded-2xl text-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">Cargo / Função Eclesiástica:</span>
+                    <span className="font-extrabold uppercase text-[10px] bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full">
+                      {freshMember.role === 'pastor' ? 'Pastor' : freshMember.role === 'discipulador' ? 'Discipulador' : 'Discípulo'}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await setDoc(doc(db, 'users', freshMember.id), { role: 'discípulo' }, { merge: true });
+                        setSelectedMember({ ...freshMember, role: 'discípulo' });
+                      }}
+                      className={`flex-1 py-1.5 px-2 rounded-xl border text-[10px] font-black uppercase transition-all cursor-pointer ${
+                        freshMember.role === 'discípulo' || !freshMember.role
+                          ? 'bg-[#004b87] text-white border-[#004b87]'
+                          : 'bg-white text-slate-600 border-[#e5e0d5] hover:bg-slate-50'
+                      }`}
+                    >
+                      Discípulo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await setDoc(doc(db, 'users', freshMember.id), { role: 'discipulador' }, { merge: true });
+                        setSelectedMember({ ...freshMember, role: 'discipulador' });
+                      }}
+                      className={`flex-1 py-1.5 px-2 rounded-xl border text-[10px] font-black uppercase transition-all cursor-pointer ${
+                        freshMember.role === 'discipulador'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white text-slate-600 border-[#e5e0d5] hover:bg-slate-50'
+                      }`}
+                    >
+                      Discipulador
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await setDoc(doc(db, 'users', freshMember.id), { role: 'pastor' }, { merge: true });
+                        setSelectedMember({ ...freshMember, role: 'pastor' });
+                      }}
+                      className={`flex-1 py-1.5 px-2 rounded-xl border text-[10px] font-black uppercase transition-all cursor-pointer ${
+                        freshMember.role === 'pastor'
+                          ? 'bg-rose-600 text-white border-rose-600'
+                          : 'bg-white text-slate-600 border-[#e5e0d5] hover:bg-slate-50'
+                      }`}
+                    >
+                      Pastor
+                    </button>
+                  </div>
+
+                  {freshMember.role === 'discípulo' && (
+                    <div className="pt-2 border-t border-dashed border-[#e5e0d5]">
+                      <span className="block text-[10px] text-slate-400 font-bold mb-1.5">Discipulador Vinculado:</span>
+                      {freshMember.discipuladorName ? (
+                        <div className="flex items-center justify-between bg-white border border-[#e5e0d5] p-2 rounded-xl">
+                          <span className="font-extrabold text-[#0f2646]">{freshMember.discipuladorName}</span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await setDoc(doc(db, 'users', freshMember.id), { 
+                                discipuladorId: null,
+                                discipuladorName: null 
+                              }, { merge: true });
+                              setSelectedMember({ 
+                                ...freshMember, 
+                                discipuladorId: undefined, 
+                                discipuladorName: undefined 
+                              });
+                            }}
+                            className="text-[9px] text-red-600 hover:underline font-bold cursor-pointer"
+                          >
+                            Desvincular
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="bg-amber-500/5 border border-dashed border-amber-300 p-2.5 rounded-xl text-[10px] text-amber-800 leading-normal">
+                          ⚠️ Sem discipulador vinculado. Ele pode usar um Código de Convite de um discipulador ao se registrar para vincular-se automaticamente.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 🧭 Maturidade Espiritual scores */}
+                {freshMember.lastAssessmentScores && (
+                  <div className="bg-white border border-[#e5e0d5] p-4 rounded-2xl text-left space-y-3">
+                    <div className="flex justify-between items-center border-b border-[#FAF9F5] pb-2">
+                      <div className="flex items-center gap-1.5">
+                        <Compass className="w-4 h-4 text-[#004b87]" />
+                        <h4 className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Maturidade Espiritual</h4>
+                      </div>
+                      <span className="text-[9px] font-bold font-mono text-[#b48a30]">
+                        Avaliado em: {freshMember.lastAssessmentDate}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div className="space-y-1">
+                        <div className="flex justify-between font-bold">
+                          <span>Comunhão</span>
+                          <span className="font-mono text-[#004b87]">{freshMember.lastAssessmentScores.comunhao} / 5</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-[#004b87] h-full" style={{ width: `${(freshMember.lastAssessmentScores.comunhao / 5) * 100}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between font-bold">
+                          <span>Relacionamento</span>
+                          <span className="font-mono text-emerald-700">{freshMember.lastAssessmentScores.relacionamento} / 5</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-emerald-600 h-full" style={{ width: `${(freshMember.lastAssessmentScores.relacionamento / 5) * 100}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between font-bold">
+                          <span>Fidelidade</span>
+                          <span className="font-mono text-amber-700">{freshMember.lastAssessmentScores.fidelidade} / 5</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-amber-500 h-full" style={{ width: `${(freshMember.lastAssessmentScores.fidelidade / 5) * 100}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between font-bold">
+                          <span>Missão</span>
+                          <span className="font-mono text-purple-700">{freshMember.lastAssessmentScores.missao} / 5</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-purple-600 h-full" style={{ width: `${(freshMember.lastAssessmentScores.missao / 5) * 100}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 💬 Discipulador Feedback Section */}
+                <div className="bg-emerald-50/40 border border-emerald-150 p-4 rounded-2xl text-left space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Clipboard className="w-4 h-4 text-emerald-700" />
+                    <h4 className="text-[10px] uppercase font-black text-emerald-800 tracking-wider font-mono">Parecer do Discipulador</h4>
+                  </div>
+                  {freshMember.discipuladorFeedback ? (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-slate-700 italic font-medium leading-relaxed bg-white p-3 rounded-xl border border-stone-150">
+                        "{freshMember.discipuladorFeedback}"
+                      </p>
+                      {freshMember.discipuladorFeedbackDate && (
+                        <p className="text-[9px] text-slate-400 font-mono text-right font-bold">
+                          Registrado por {freshMember.discipuladorName || 'Discipulador'} em {freshMember.discipuladorFeedbackDate}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">O discipulador ainda não registrou nenhum parecer ou feedback sobre este membro.</p>
+                  )}
+                </div>
+
+                {/* ⛪ Pastor's Feedback Form */}
+                <div className="bg-[#0f2646]/5 border border-[#0f2646]/10 p-4 rounded-2xl text-left space-y-3">
+                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#004b87]">
+                    <Landmark className="w-4.5 h-4.5 text-[#004b87]" />
+                    <span>Seu Feedback e Parecer Pastoral</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-snug">
+                    Adicione suas orientações e acompanhamento do distrito para este membro.
+                  </p>
+                  
+                  <textarea
+                    rows={3}
+                    placeholder="Escreva aqui suas considerações pastorais sobre a maturidade deste membro..."
+                    value={pastorFeedbackText}
+                    onChange={(e) => setPastorFeedbackText(e.target.value)}
+                    className="w-full bg-white border border-[#e5e0d5] focus:border-[#004b87] rounded-xl p-3 text-xs outline-none transition-all placeholder:text-stone-400 text-stone-850 font-medium shadow-inner resize-none focus:ring-4 focus:ring-[#004b87]/10"
+                  />
+
+                  {pastorFeedbackSuccess && (
+                    <p className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
+                      ✓ Feedback pastoral atualizado com sucesso no perfil!
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={pastorFeedbackLoading}
+                    onClick={handleSavePastorFeedback}
+                    className="bg-[#004b87] hover:bg-[#003763] text-white font-extrabold text-[10px] uppercase tracking-wider py-2 px-4 rounded-xl cursor-pointer shadow-sm active:scale-95 transition-all disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {pastorFeedbackLoading ? 'Salvando...' : 'Salvar Feedback Pastoral'}
+                  </button>
+                </div>
+
                 {/* 2. Discipulado Progress Level Info */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-end">
@@ -1300,6 +1884,17 @@ export default function AdminPanel({
                         >
                           Histórico ({selectedLogs.length})
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentSelectedTab('assessments')}
+                          className={`flex-1 text-center py-1.5 px-1 text-[10px] font-black rounded-lg transition-all cursor-pointer select-none ${
+                            currentSelectedTab === 'assessments'
+                              ? 'bg-[#004b87] text-white shadow-sm'
+                              : 'text-slate-500 hover:bg-slate-200/50 hover:text-slate-705'
+                          }`}
+                        >
+                          Diagnóstico ({selectedAssessments.length})
+                        </button>
                       </div>
 
                       {/* Content panel */}
@@ -1414,6 +2009,89 @@ export default function AdminPanel({
                                   )}
                                 </div>
                               ))}
+                            </div>
+                          )
+                        )}
+
+                        {currentSelectedTab === 'assessments' && (
+                          selectedAssessments.length === 0 ? (
+                            <p className="text-[11px] text-slate-400 italic text-center py-4">Nenhum diagnóstico de maturidade espiritual realizado.</p>
+                          ) : (
+                            <div className="space-y-3 text-left">
+                              {selectedAssessments.map(record => {
+                                const avg = Math.round((record.scores.comunhao + record.scores.relacionamento + record.scores.fidelidade + record.scores.missao) / 4);
+                                return (
+                                  <div key={record.id} className="bg-white border border-slate-200 p-3 rounded-xl space-y-2.5">
+                                    <div className="flex justify-between items-center text-[9px] font-mono text-slate-400 font-bold">
+                                      <span className="text-[#004b87] font-extrabold bg-[#004b87]/5 px-2 py-0.5 rounded-md border border-[#004b87]/10">Diagnóstico: {record.date}</span>
+                                      <span className="font-extrabold text-[#b48a30] bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-100">Média: {avg}%</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                      <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100 text-center">
+                                        <span className="block text-[8px] text-slate-400 font-bold font-mono">Comunhão</span>
+                                        <span className="font-mono text-xs font-black text-[#0f2646]">{record.scores.comunhao}%</span>
+                                      </div>
+                                      <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100 text-center">
+                                        <span className="block text-[8px] text-slate-400 font-bold font-mono">Relacionamento</span>
+                                        <span className="font-mono text-xs font-black text-slate-700">{record.scores.relacionamento}%</span>
+                                      </div>
+                                      <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100 text-center">
+                                        <span className="block text-[8px] text-slate-400 font-bold font-mono">Fidelidade</span>
+                                        <span className="font-mono text-xs font-black text-slate-700">{record.scores.fidelidade}%</span>
+                                      </div>
+                                      <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100 text-center">
+                                        <span className="block text-[8px] text-slate-400 font-bold font-mono">Missão</span>
+                                        <span className="font-mono text-xs font-black text-slate-700">{record.scores.missao}%</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Detailed answers */}
+                                    <details className="group bg-slate-50 border border-stone-200 rounded-lg overflow-hidden">
+                                      <summary className="flex items-center justify-between p-1.5 text-[10px] font-extrabold text-slate-500 bg-slate-100 cursor-pointer list-none select-none">
+                                        <span>🔍 Ver Respostas</span>
+                                        <span className="transition-transform group-open:rotate-180">▼</span>
+                                      </summary>
+                                      <div className="p-2 space-y-2 border-t border-stone-150 max-h-[140px] overflow-y-auto bg-white">
+                                        {(() => {
+                                          const QUESTIONS_MAP: Record<string, { label: string; pillar: string }> = {
+                                            comunhao_1: { label: "Estudo diário da Bíblia e Lição", pillar: "Comunhão" },
+                                            comunhao_2: { label: "Frequência e intimidade de Oração", pillar: "Comunhão" },
+                                            relacionamento_1: { label: "Culto familiar e comunhão no lar", pillar: "Relacionamento" },
+                                            relacionamento_2: { label: "Participação no Pequeno Grupo", pillar: "Relacionamento" },
+                                            fidelidade_1: { label: "Fidelidade nos dízimos e ofertas", pillar: "Fidelidade" },
+                                            fidelidade_2: { label: "Uso de dons espirituais no ministério", pillar: "Fidelidade" },
+                                            missao_1: { label: "Testemunho pessoal e evangelismo", pillar: "Missão" },
+                                            missao_2: { label: "Participação em projetos comunitários", pillar: "Missão" }
+                                          };
+                                          return Object.entries(record.answers || {}).map(([qId, score]) => {
+                                            const q = QUESTIONS_MAP[qId] || { label: qId, pillar: "Pilar" };
+                                            const widthPct = Number(score);
+                                            const barColor = q.pillar === "Comunhão" ? "bg-sky-500" : q.pillar === "Relacionamento" ? "bg-emerald-500" : q.pillar === "Fidelidade" ? "bg-amber-500" : "bg-rose-500";
+                                            return (
+                                              <div key={qId} className="space-y-0.5 text-[10px] text-left">
+                                                <div className="flex justify-between items-start gap-1 font-bold">
+                                                  <span className="text-slate-700 font-extrabold leading-tight">{q.label}</span>
+                                                  <span className="text-stone-500 font-mono text-[9px] shrink-0 bg-stone-100 px-1 rounded">{score}%</span>
+                                                </div>
+                                                <div className="w-full bg-stone-200 rounded-full h-1">
+                                                  <div className={`h-full ${barColor} rounded-full`} style={{ width: `${widthPct}%` }} />
+                                                </div>
+                                              </div>
+                                            );
+                                          });
+                                        })()}
+                                      </div>
+                                    </details>
+
+                                    {record.observation && (
+                                      <div className="bg-amber-500/5 border border-amber-500/10 p-2 rounded-lg">
+                                        <span className="block text-[8px] uppercase font-mono font-black text-[#b48a30]">Observações do Discípulo</span>
+                                        <p className="text-[11px] text-slate-600 italic mt-0.5">"{record.observation}"</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )
                         )}
