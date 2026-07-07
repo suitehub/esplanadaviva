@@ -62,11 +62,12 @@ export default function AdminPanel({
   const [selectedBibleReadings, setSelectedBibleReadings] = useState<any[]>([]);
   const [selectedReflections, setSelectedReflections] = useState<any[]>([]);
   const [selectedMissions, setSelectedMissions] = useState<any[]>([]);
+  const [selectedBookChapters, setSelectedBookChapters] = useState<any[]>([]);
   const [selectedLogs, setSelectedLogs] = useState<any[]>([]);
   const [selectedAssessments, setSelectedAssessments] = useState<any[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
-  const [currentSelectedTab, setCurrentSelectedTab] = useState<'lessons' | 'reflections' | 'missions' | 'bible' | 'logs' | 'assessments'>('lessons');
+  const [currentSelectedTab, setCurrentSelectedTab] = useState<'lessons' | 'reflections' | 'missions' | 'bible' | 'bookChapters' | 'logs' | 'assessments'>('lessons');
 
   // Pastor Feedback states
   const [pastorFeedbackText, setPastorFeedbackText] = useState('');
@@ -113,6 +114,7 @@ export default function AdminPanel({
       setSelectedBibleReadings([]);
       setSelectedReflections([]);
       setSelectedMissions([]);
+      setSelectedBookChapters([]);
       setSelectedLogs([]);
       setSelectedAssessments([]);
       setDetailsError(null);
@@ -125,11 +127,12 @@ export default function AdminPanel({
       const uid = selectedMember.id;
 
       try {
-        const [lessonsSnap, bibleSnap, reflectionsSnap, missionsSnap, logsSnap, assessmentsSnap] = await Promise.all([
+        const [lessonsSnap, bibleSnap, reflectionsSnap, missionsSnap, bookChaptersSnap, logsSnap, assessmentsSnap] = await Promise.all([
           getDocs(collection(db, 'users', uid, 'lessons')),
           getDocs(collection(db, 'users', uid, 'bible')),
           getDocs(collection(db, 'users', uid, 'reflections')),
           getDocs(collection(db, 'users', uid, 'completedMissions')),
+          getDocs(collection(db, 'users', uid, 'bookChapters')),
           getDocs(collection(db, 'users', uid, 'logs')),
           getDocs(collection(db, 'users', uid, 'assessments')),
         ]);
@@ -158,6 +161,12 @@ export default function AdminPanel({
         });
         setSelectedMissions(missionsList);
 
+        const bookChaptersList: any[] = [];
+        bookChaptersSnap.forEach((docSnap) => {
+          bookChaptersList.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        setSelectedBookChapters(bookChaptersList);
+
         const logsList: any[] = [];
         logsSnap.forEach((docSnap) => {
           logsList.push({ id: docSnap.id, ...docSnap.data() });
@@ -177,19 +186,22 @@ export default function AdminPanel({
         const correctBibleCount = bibleList.length;
         const correctReflectionsCount = reflectionsList.length;
         const correctMissionsCount = missionsList.length;
+        const correctBookChaptersCount = bookChaptersList.length;
 
         const needsHeal = 
           selectedMember.lessonsStudiedCount !== correctLessonsCount ||
           selectedMember.bibleReadingsCount !== correctBibleCount ||
           selectedMember.reflectionsCount !== correctReflectionsCount ||
-          selectedMember.completedMissionsCount !== correctMissionsCount;
+          selectedMember.completedMissionsCount !== correctMissionsCount ||
+          selectedMember.bookChaptersCount !== correctBookChaptersCount;
 
         if (needsHeal) {
           await setDoc(doc(db, 'users', uid), {
             lessonsStudiedCount: correctLessonsCount,
             bibleReadingsCount: correctBibleCount,
             reflectionsCount: correctReflectionsCount,
-            completedMissionsCount: correctMissionsCount
+            completedMissionsCount: correctMissionsCount,
+            bookChaptersCount: correctBookChaptersCount
           }, { merge: true });
         }
 
@@ -1795,6 +1807,18 @@ export default function AdminPanel({
                       </div>
                     </div>
 
+                    {/* Espirito de Profecia card */}
+                    <div className="flex items-start gap-3 bg-amber-50/30 border border-amber-200/60 p-3.5 rounded-2xl hover:bg-amber-50 transition-colors">
+                      <span className="text-2xl mt-0.5 shrink-0">📜</span>
+                      <div className="space-y-1 min-w-0">
+                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-800 leading-none block">Espírito de Profecia</span>
+                        <p className="text-sm font-black text-[#0f2646] font-mono">
+                          {selectedBookChapters.length} capítulos
+                        </p>
+                        <p className="text-[10px] text-slate-500 leading-snug font-medium">Capítulos do Espírito de Profecia lidos e refletidos.</p>
+                      </div>
+                    </div>
+
                     {/* Missions card */}
                     <div className="flex items-start gap-3 bg-emerald-50/50 border border-emerald-100 p-3.5 rounded-2xl hover:bg-emerald-50 transition-colors">
                       <span className="text-2xl mt-0.5 shrink-0">🤝</span>
@@ -1872,6 +1896,17 @@ export default function AdminPanel({
                           }`}
                         >
                           Bíblia ({selectedBibleReadings.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentSelectedTab('bookChapters')}
+                          className={`flex-1 text-center py-1.5 px-1 text-[10px] font-black rounded-lg transition-all cursor-pointer select-none ${
+                            currentSelectedTab === 'bookChapters'
+                              ? 'bg-[#004b87] text-white shadow-sm'
+                              : 'text-slate-500 hover:bg-slate-200/50 hover:text-slate-705'
+                          }`}
+                        >
+                          Profecia ({selectedBookChapters.length})
                         </button>
                         <button
                           type="button"
@@ -1990,6 +2025,26 @@ export default function AdminPanel({
                           )
                         )}
 
+                        {currentSelectedTab === 'bookChapters' && (
+                          selectedBookChapters.length === 0 ? (
+                            <p className="text-[11px] text-slate-400 italic text-center py-4">Nenhum capítulo do Espírito de Profecia marcado pelo membro.</p>
+                          ) : (
+                            <div className="space-y-2 text-left">
+                              {selectedBookChapters.map(ch => (
+                                <div key={ch.id} className="bg-white border border-slate-100 p-2.5 rounded-xl space-y-1">
+                                  <div className="flex justify-between items-center text-[9px] font-mono text-slate-400 font-bold">
+                                    <span className="text-[#004b87] font-extrabold">Capítulo {ch.id.replace('chapter-', '')}</span>
+                                    <span>{ch.completedAt ? new Date(ch.completedAt).toLocaleDateString('pt-BR') : ''}</span>
+                                  </div>
+                                  <p className="text-xs text-slate-700 italic font-semibold leading-relaxed">
+                                    {ch.answer ? `"${ch.answer}"` : <span className="text-slate-400 font-normal">Lido (sem reflexões).</span>}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        )}
+
                         {currentSelectedTab === 'logs' && (
                           selectedLogs.length === 0 ? (
                             <p className="text-[11px] text-slate-400 italic text-center py-4">Nenhuma atividade registrada no histórico de logs.</p>
@@ -2002,7 +2057,7 @@ export default function AdminPanel({
                                     <span className="text-emerald-600">+{l.xpReceived} XP</span>
                                   </div>
                                   <p className="text-xs font-extrabold text-slate-800 leading-tight">
-                                    {l.type === 'bíblia' ? '📖' : l.type === 'lição' ? '📚' : l.type === 'reflexão' ? '✍️' : l.type === 'missão' ? '🤝' : '🎖️'} {l.title}
+                                    {l.type === 'bíblia' ? '📖' : l.type === 'lição' ? '📚' : l.type === 'profecia' ? '📜' : l.type === 'reflexão' ? '✍️' : l.type === 'missão' ? '🤝' : '🎖️'} {l.title}
                                   </p>
                                   {l.observation && (
                                     <p className="text-[9.5px] text-slate-500 italic truncate">"{l.observation}"</p>

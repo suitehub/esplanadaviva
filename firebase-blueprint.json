@@ -184,6 +184,22 @@
         "usedAt": { "type": "string" }
       },
       "required": ["id", "code", "type", "createdById", "createdByName", "createdAt", "status"]
+    },
+    "BookChapter": {
+      "title": "BookChapter",
+      "description": "Information about a completed Spirit of Prophecy book chapter for a member",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "chapterNumber": { "type": "number" },
+        "title": { "type": "string" },
+        "pages": { "type": "string" },
+        "summary": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "answer": { "type": "string" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["id", "completed", "answer"]
     }
   },
   "firestore": {
@@ -222,6 +238,10 @@
     "/users/{userId}/assessments/{assessmentId}": {
       "schema": "SpiritualAssessment",
       "description": "User's completed spiritual maturity assessment results"
+    },
+    "/users/{userId}/bookChapters/{chapterId}": {
+      "schema": "BookChapter",
+      "description": "Spirit of Prophecy book chapter completion registers for the user"
     },
     "/challenges/{challengeId}": {
       "schema": "MissionChallenge",

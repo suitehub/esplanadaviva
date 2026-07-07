@@ -1,4 +1,4 @@
-import { SabbathLesson, BibleReading, MissionChallenge, Medal, Milestone } from './types';
+import { SabbathLesson, BibleReading, MissionChallenge, Medal, Milestone, BookChapter } from './types';
 
 // Levels according to specification
 export const LEVEL_STEPS = [
@@ -347,7 +347,171 @@ export const INITIAL_MILESTONES: Milestone[] = [
     title: 'Marco de 1 Ano',
     description: 'Uma jornada extraordinária de perseverança espiritual, amadurecimento e testemunho.',
     rewardText: 'Entrega de Bíblia de Estudo no próximo congresso + Caixa de Literatura Especial',
-    xpRequired: 10000,
+    xpRequired: 1000,
     medalId: 'medal-streak-30'
   }
 ];
+
+export const INITIAL_BOOK_CHAPTERS: BookChapter[] = [
+  {
+    id: 'chapter-1',
+    chapterNumber: 1,
+    title: 'A última crise da terra',
+    pages: 'pág. 14 - 18',
+    summary: 'Uma análise da apreensão e expectativa generalizadas quanto ao futuro do planeta. Alerta-nos sobre as rápidas transformações sociais, geopolíticas e desastres naturais que sinalizam a proximidade do encerramento da história humana, enfatizando a importância do estudo sério dos livros de Daniel e Apocalipse.',
+    completed: false
+  },
+  {
+    id: 'chapter-2',
+    chapterNumber: 2,
+    title: 'Sinais de que Cristo voltará em breve',
+    pages: 'pág. 19 - 28',
+    summary: 'Apresenta os sinais celestes e terrestres previstos pelo Salvador no sermão profético de Mateus 24. Aborda o surgimento de falsos profetas, o aumento da violência, a intemperança social, as guerras e desastres de grandes proporções no mar e na terra como prenúncios visíveis de Sua gloriosa vinda.',
+    completed: false
+  },
+  {
+    id: 'chapter-3',
+    chapterNumber: 3,
+    title: '“Quando sucederão estas coisas?”',
+    pages: 'pág. 29 - 36',
+    summary: 'Examina a questão do tempo no plano divino. Mostra que o momento exato da volta de Cristo não é revelado aos homens nem aos anjos e adverte contra marcar datas precisas, o que historicamente gera descrença e fanatismo, convocando o povo a viver em constante vigilância e prontidão ativa.',
+    completed: false
+  },
+  {
+    id: 'chapter-4',
+    chapterNumber: 4,
+    title: 'A igreja de Deus nos últimos dias',
+    pages: 'pág. 37 - 50',
+    summary: 'Descreve o papel profético do remanescente que guarda os mandamentos de Deus e tem a fé em Jesus. Destaca a necessidade contínua de organização e união estrutural e aborda os perigos da debilidade espiritual interna, reafirmando a paciência, providência e cooperação do Senhor para com Sua igreja.',
+    completed: false
+  },
+  {
+    id: 'chapter-5',
+    chapterNumber: 5,
+    title: 'A vida devocional do remanescente',
+    pages: 'pág. 51 - 59',
+    summary: 'Trata do cultivo diário da intimidade espiritual mediante a oração fervorosa, a meditação e o estudo sistemático das escrituras sagradas. Aponta o exemplo histórico de Enoque, que andou de forma prática e constante com Deus em meio a uma sociedade corrompida.',
+    completed: false
+  },
+  {
+    id: 'chapter-6',
+    chapterNumber: 6,
+    title: 'O estilo de vida e as atividades do remanescente',
+    pages: 'pág. 60 - 73',
+    summary: 'Traz conselhos práticos para a conduta diária e o serviço abnegado. Aborda a conscienciosa observância do sábado, a fidelidade nos dízimos e ofertas, o estabelecimento de instituições, a reforma de saúde, a temperança no regime alimentar, a recreação sadia e a música espiritual.',
+    completed: false
+  },
+  {
+    id: 'chapter-7',
+    chapterNumber: 7,
+    title: 'Vida campestre',
+    pages: 'pág. 74 - 84',
+    summary: 'Destaca as vantagens do convívio harmônico com a natureza para o desenvolvimento físico, mental e de caráter. Recomenda que as famílias estabeleçam lares no campo para ficarem protegidas das tentações das metrópoles, instruindo também sobre a localização de instituições e escolas.',
+    completed: false
+  },
+  {
+    id: 'chapter-8',
+    chapterNumber: 8,
+    title: 'As cidades',
+    pages: 'pág. 85 - 94',
+    summary: 'Alerta sobre os perigos morais, físicos e espirituais que permeiam as grandes cidades modernas. Mostra as metrópoles como viveiros de vícios, criminalidade e corrupção e apela para que o trabalho de evangelização seja feito partindo de postos avançados situados na periferia.',
+    completed: false
+  },
+  {
+    id: 'chapter-9',
+    chapterNumber: 9,
+    title: 'Leis dominicais',
+    pages: 'pág. 95 - 108',
+    summary: 'Aborda a grande controvérsia final envolvendo a guarda do sábado em contraste com as leis civis humanas. Discorre sobre o desafio de Satanás à autoridade de Deus e sobre os movimentos políticos e religiosos que buscarão impor o domingo como feriado civil nacional obrigatório.',
+    completed: false
+  },
+  {
+    id: 'chapter-10',
+    chapterNumber: 10,
+    title: 'O pequeno tempo de angústia',
+    pages: 'pág. 109 - 116',
+    summary: 'Detalha a fase de provação que ocorre pouco antes de as pragas finais serem derramadas. Examina o fim das liberdades civis e religiosas, o preconceito e oposição estatal contra o povo de Deus e as perseguições que farão com que os fiéis percam o apoio terreno temporário.',
+    completed: false
+  },
+  {
+    id: 'chapter-11',
+    chapterNumber: 11,
+    title: 'Enganos satânicos nos últimos dias',
+    pages: 'pág. 117 - 128',
+    summary: 'Desmascara as fraudes e artimanhas sobrenaturais que Satanás operará para enganar a humanidade. Adverte sobre o espiritismo, a personificação visual e falada de entes queridos falecidos, a imitação do próprio Cristo e a ocorrência de curas mentirosas e fenômenos de fogo no céu.',
+    completed: false
+  },
+  {
+    id: 'chapter-12',
+    chapterNumber: 12,
+    title: 'A sacudidura',
+    pages: 'pág. 129 - 136',
+    summary: 'Explica o doloroso processo de joeiramento na igreja, onde a perseguição e a rejeição das mensagens de repreensão purificarão o povo de Deus. Mostra que crentes superficiais e dirigentes vacilarão, enquanto novos conversos de todo o mundo ocuparão firmemente os seus lugares.',
+    completed: false
+  },
+  {
+    id: 'chapter-13',
+    chapterNumber: 13,
+    title: 'A chuva serôdia',
+    pages: 'pág. 137 - 146',
+    summary: 'Apresenta o derramamento glorioso e sem precedentes do Espírito Santo sobre os crentes preparados, capacitando-os com o poder divino para anunciar o evangelho. Explica que a chuva temporã (conversão) deve ser valorizada para que se possa discernir e receber a chuva serôdia.',
+    completed: false
+  },
+  {
+    id: 'chapter-14',
+    chapterNumber: 14,
+    title: 'O alto clamor',
+    pages: 'pág. 147 - 159',
+    summary: 'Refere-se ao momento de proclamação global e decisiva da última mensagem de advertência de Apocalipse 14 e 18. Salienta que o evangelho alcançará com incrível poder todas as nações, línguas e religiões, convertendo milhares de sinceros de coração em um único dia.',
+    completed: false
+  },
+  {
+    id: 'chapter-15',
+    chapterNumber: 15,
+    title: 'O selo de Deus e a marca da besta',
+    pages: 'pág. 160 - 167',
+    summary: 'Examina a distinção final entre os súditos de Deus e os seguidores da besta. Mostra que o selo de Deus, gravado nas testas dos justos, representa a consolidação intelectual e espiritual na verdade do sábado, refletindo a perfeita semelhança com o caráter amoroso de Cristo.',
+    completed: false
+  },
+  {
+    id: 'chapter-16',
+    chapterNumber: 16,
+    title: 'O fim do tempo da graça',
+    pages: 'pág. 168 - 175',
+    summary: 'Discorre sobre o encerramento do ministério intercessor de Jesus no santuário celestial e a fixação irrevogável do destino de cada alma. Adverte que este momento solene ocorrerá de forma repentina e invisível, enquanto a vida quotidiana nas cidades prossegue normalmente.',
+    completed: false
+  },
+  {
+    id: 'chapter-17',
+    chapterNumber: 17,
+    title: 'As sete últimas pragas e os ímpios',
+    pages: 'pág. 176 - 185',
+    summary: 'Analisa o derramamento sucessivo das taças da ira de Deus sobre a terra, após a retirada de Sua proteção protetora. Descreve os graves flagelos físicos e a terrível angústia mental e física que assolarão os que rejeitaram a lei e a misericórdia do Criador.',
+    completed: false
+  },
+  {
+    id: 'chapter-18',
+    chapterNumber: 18,
+    title: 'As sete últimas pragas e os justos',
+    pages: 'pág. 186 - 198',
+    summary: 'Contrapõe o sofrimento físico dos justos ao amparo milagroso que receberão. Mostra que, em meio ao tempo de angústia de Jacó, Deus assegurará o sustento com pão e água e enviará Seus santos anjos para proteger individualmente cada um de Seus servos fiéis.',
+    completed: false
+  },
+  {
+    id: 'chapter-19',
+    chapterNumber: 19,
+    title: 'A volta de Cristo',
+    pages: 'pág. 199 - 207',
+    summary: 'Relata o evento culminante da história humana: o aparecimento de Jesus sobre as nuvens do céu com poder e glória. Aborda a ressurreição especial dos justos falecidos, a transformação dos vivos e a recepção das coroas e harpas diante das portas de pérola.',
+    completed: false
+  },
+  {
+    id: 'chapter-20',
+    chapterNumber: 20,
+    title: 'A herança dos santos',
+    pages: 'pág. 208 - 224',
+    summary: 'Apresenta a consolidação definitiva do reino eterno. Discorre sobre a restauração da terra, a glória indescritível da Nova Jerusalém, a comunhão face a face com o Pai e o Filho, o estudo infinito da história da redenção e as atividades felizes que reinarão no novo lar.',
+    completed: false
+  }
+];
+

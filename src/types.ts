@@ -17,6 +17,7 @@ export interface UserProfileData {
   completedMissionsCount: number; // For achievements
   reflectionsCount: number; // For achievements
   lessonsStudiedCount: number; // For achievements
+  bookChaptersCount?: number; // For achievements
   church?: string; // Church selected during login/registration
   role?: 'pastor' | 'discipulador' | 'discípulo' | 'admin' | 'user';
   discipuladorId?: string;
@@ -31,6 +32,7 @@ export interface UserProfileData {
   dailyStatus?: {
     lessonCompleted: boolean;
     bibleCompleted: boolean;
+    bookChapterCompleted?: boolean;
     reflectionCompleted: boolean;
     missionCompleted: boolean;
     lastResetDate: string;
@@ -112,7 +114,7 @@ export interface Medal {
 export interface ActivityHistory {
   id: string;
   date: string; // YYYY-MM-DD HH:MM
-  type: 'lição' | 'bíblia' | 'reflexão' | 'missão' | 'streak_bônus' | 'nível_up';
+  type: 'lição' | 'bíblia' | 'profecia' | 'reflexão' | 'missão' | 'streak_bônus' | 'nível_up';
   title: string;
   xpReceived: number;
   observation?: string;
@@ -123,6 +125,18 @@ export interface NotificationSettingsData {
   remindStreak: boolean;
   remindProgression: boolean;
   lessonTime: string; // HH:MM
+}
+
+export interface BookChapter {
+  id: string;
+  chapterNumber: number;
+  title: string;
+  pages: string;
+  summary: string;
+  content?: string;
+  completed: boolean;
+  answer?: string;
+  completedAt?: string;
 }
 
 export interface Milestone {

@@ -54,7 +54,13 @@ service cloud.firestore {
 
     // --- USER PROFILES ---
     match /users/{userId} {
-      allow get: if isLeader(request.auth.uid, userId);
+      allow get: if isSignedIn() && (
+        request.auth.uid == userId ||
+        isUserAdmin(request.auth.uid) ||
+        isPastor(request.auth.uid) ||
+        (exists(/databases/$(database)/documents/users/$(userId)) &&
+         get(/databases/$(database)/documents/users/$(userId)).data.get('discipuladorId', '') == request.auth.uid)
+      );
       allow list: if isSignedIn() && (
         isUserAdmin(request.auth.uid) || 
         isPastor(request.auth.uid) || 
@@ -125,6 +131,13 @@ service cloud.firestore {
       match /assessments/{assessmentId} {
         allow read: if isLeader(request.auth.uid, userId);
         allow create, update: if isOwner(userId) && isValidId(assessmentId);
+        allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid) || isPastor(request.auth.uid);
+      }
+
+      // Spirit of Prophecy book chapters completed
+      match /bookChapters/{chapterId} {
+        allow read: if isLeader(request.auth.uid, userId);
+        allow create, update: if isOwner(userId) && isValidId(chapterId);
         allow delete: if isOwner(userId) || isUserAdmin(request.auth.uid) || isPastor(request.auth.uid);
       }
     }

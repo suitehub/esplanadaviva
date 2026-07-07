@@ -10,10 +10,11 @@ interface DashboardProps {
   dailyStatus: {
     lessonCompleted: boolean;
     bibleCompleted: boolean;
+    bookChapterCompleted?: boolean;
     reflectionCompleted: boolean;
     missionCompleted: boolean;
   };
-  onQuickAction: (action: 'licao' | 'bible' | 'reflection' | 'mission' | 'path' | 'medals' | 'admin' | 'assessment') => void;
+  onQuickAction: (action: 'licao' | 'bible' | 'reflection' | 'mission' | 'path' | 'medals' | 'admin' | 'assessment' | 'bookChapter') => void;
   isAdminUser?: boolean;
 }
 
@@ -22,11 +23,12 @@ export default function Dashboard({ user, dailyStatus, onQuickAction, isAdminUse
   const completedCount = [
     dailyStatus.lessonCompleted,
     dailyStatus.bibleCompleted,
+    dailyStatus.bookChapterCompleted,
     dailyStatus.reflectionCompleted,
     dailyStatus.missionCompleted,
   ].filter(Boolean).length;
 
-  const dailyPercentage = completedCount * 25;
+  const dailyPercentage = Math.round((completedCount / 5) * 100);
 
   // Next level calculations
   const currentStep = LEVEL_STEPS.find(s => s.level === user.level) || { minXp: 0, title: 'Iniciante' };
@@ -219,9 +221,9 @@ export default function Dashboard({ user, dailyStatus, onQuickAction, isAdminUse
               </div>
             </div>
             <p className="text-xs text-slate-500 mt-3 text-center font-medium">
-              {completedCount === 4 
+              {completedCount === 5 
                 ? '⭐ Perfeito! Comunhão e missão completas hoje!' 
-                : `${completedCount} de 4 conquistas hoje.`}
+                : `${completedCount} de 5 conquistas hoje.`}
             </p>
           </div>
 
@@ -264,13 +266,31 @@ export default function Dashboard({ user, dailyStatus, onQuickAction, isAdminUse
             </div>
 
             <div className={`p-3 rounded-xl flex items-center justify-between border transition-all ${
+              dailyStatus.bookChapterCompleted 
+                ? 'bg-emerald-50 bg-[#059669]/5 border-emerald-200 text-emerald-850' 
+                : 'bg-[#FAF9F5] border-[#e5e0d5] text-slate-600'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className={`w-5 h-5 shrink-0 ${dailyStatus.bookChapterCompleted ? 'text-emerald-600 fill-emerald-100' : 'text-slate-350'}`} />
+                <span className="text-xs font-bold font-sans">3. Espírito de Profecia</span>
+              </div>
+              <button 
+                id="btn-goto-bookChapter"
+                onClick={() => onQuickAction('bookChapter')}
+                className="text-xs font-bold text-[#004b87] hover:underline bg-white px-2.5 py-1.5 rounded-lg border border-[#e5e0d5] shadow-inner"
+              >
+                {dailyStatus.bookChapterCompleted ? 'Revisar' : 'Ler Capítulo'}
+              </button>
+            </div>
+
+            <div className={`p-3 rounded-xl flex items-center justify-between border transition-all ${
               dailyStatus.reflectionCompleted 
                 ? 'bg-emerald-50 bg-[#059669]/5 border-emerald-200 text-emerald-850' 
                 : 'bg-[#FAF9F5] border-[#e5e0d5] text-slate-600'
             }`}>
               <div className="flex items-center gap-2.5">
                 <CheckCircle2 className={`w-5 h-5 shrink-0 ${dailyStatus.reflectionCompleted ? 'text-emerald-600 fill-emerald-100' : 'text-slate-350'}`} />
-                <span className="text-xs font-bold font-sans">3. Registro de Diário e Oração</span>
+                <span className="text-xs font-bold font-sans">4. Registro de Diário e Oração</span>
               </div>
               <button 
                 id="btn-goto-reflection"
@@ -288,7 +308,7 @@ export default function Dashboard({ user, dailyStatus, onQuickAction, isAdminUse
             }`}>
               <div className="flex items-center gap-2.5">
                 <CheckCircle2 className={`w-5 h-5 shrink-0 ${dailyStatus.missionCompleted ? 'text-emerald-600 fill-emerald-100' : 'text-slate-350'}`} />
-                <span className="text-xs font-bold font-sans">4. Ações de Apoio / Visita Cristã</span>
+                <span className="text-xs font-bold font-sans">5. Ações de Apoio / Visita Cristã</span>
               </div>
               <button 
                 id="btn-goto-mission"

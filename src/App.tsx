@@ -41,7 +41,8 @@ import {
   MissionChallenge, 
   Medal, 
   ActivityHistory, 
-  NotificationSettingsData 
+  NotificationSettingsData,
+  BookChapter
 } from './types';
 
 // Import Initial Datasets & Helpers
@@ -51,7 +52,8 @@ import {
   INITIAL_BIBLE_READINGS, 
   INITIAL_MISSIONS, 
   INITIAL_MEDALS, 
-  INITIAL_MILESTONES 
+  INITIAL_MILESTONES,
+  INITIAL_BOOK_CHAPTERS
 } from './initialData';
 
 // Import Views
@@ -75,11 +77,13 @@ export default function App() {
   const [isOnboarded, setIsOnboarded] = useState<boolean>(false);
   const [user, setUser] = useState<UserProfileData | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'communion' | 'mission' | 'path' | 'relationship' | 'medals' | 'history' | 'notifications' | 'admin' | 'discipulador' | 'assessment'>('dashboard');
+  const [activeCommunionSubTab, setActiveCommunionSubTab] = useState<'lesson' | 'bible' | 'book' | 'reflection'>('lesson');
   const [firebaseReady, setFirebaseReady] = useState(false);
   
   // Core DB states
   const [lessons, setLessons] = useState<SabbathLesson[]>(INITIAL_LESSONS);
   const [bibleReadings, setBibleReadings] = useState<BibleReading[]>(INITIAL_BIBLE_READINGS);
+  const [bookChapters, setBookChapters] = useState<BookChapter[]>(INITIAL_BOOK_CHAPTERS);
   const [reflections, setReflections] = useState<SpiritualReflection[]>([]);
   const [missions, setMissions] = useState<MissionChallenge[]>(INITIAL_MISSIONS);
   const [medals, setMedals] = useState<Medal[]>(INITIAL_MEDALS);
@@ -95,6 +99,7 @@ export default function App() {
   const [dailyStatus, setDailyStatus] = useState({
     lessonCompleted: false,
     bibleCompleted: false,
+    bookChapterCompleted: false,
     reflectionCompleted: false,
     missionCompleted: false,
   });
@@ -150,6 +155,7 @@ export default function App() {
               status = {
                 lessonCompleted: false,
                 bibleCompleted: false,
+                bookChapterCompleted: false,
                 reflectionCompleted: false,
                 missionCompleted: false,
                 lastResetDate: todayStr
@@ -159,7 +165,7 @@ export default function App() {
               await setDoc(userDocRef, profile);
             } else if (status.lastResetDate !== todayStr) {
               // It is a new day! Calculate streak increment or reset
-              const didAnything = status.lessonCompleted || status.bibleCompleted || status.reflectionCompleted || status.missionCompleted;
+              const didAnything = status.lessonCompleted || status.bibleCompleted || status.bookChapterCompleted || status.reflectionCompleted || status.missionCompleted;
               if (didAnything) {
                 nextStreak += 1;
               } else {
@@ -169,6 +175,7 @@ export default function App() {
               status = {
                 lessonCompleted: false,
                 bibleCompleted: false,
+                bookChapterCompleted: false,
                 reflectionCompleted: false,
                 missionCompleted: false,
                 lastResetDate: todayStr
@@ -182,6 +189,7 @@ export default function App() {
             setDailyStatus({
               lessonCompleted: status.lessonCompleted,
               bibleCompleted: status.bibleCompleted,
+              bookChapterCompleted: status.bookChapterCompleted || false,
               reflectionCompleted: status.reflectionCompleted,
               missionCompleted: status.missionCompleted,
             });
@@ -209,6 +217,7 @@ export default function App() {
               dailyStatus: {
                 lessonCompleted: false,
                 bibleCompleted: false,
+                bookChapterCompleted: false,
                 reflectionCompleted: false,
                 missionCompleted: false,
                 lastResetDate: todayStr
@@ -218,6 +227,7 @@ export default function App() {
             setDailyStatus({
               lessonCompleted: false,
               bibleCompleted: false,
+              bookChapterCompleted: false,
               reflectionCompleted: false,
               missionCompleted: false,
             });
@@ -247,6 +257,7 @@ export default function App() {
             );
           } catch (e) {
             console.error("Erro ao carregar lições", e);
+            handleFirestoreError(e, OperationType.GET, `users/${uid}/lessons`);
           }
 
           // 3. Fetch completed bible readings
@@ -261,6 +272,22 @@ export default function App() {
             );
           } catch (e) {
             console.error("Erro ao carregar passagens da bíblia", e);
+            handleFirestoreError(e, OperationType.GET, `users/${uid}/bible`);
+          }
+
+          // 3b. Fetch completed book chapters
+          try {
+            const chaptersSnap = await getDocs(collection(db, 'users', uid, 'bookChapters'));
+            const completedChaptersMap: Record<string, any> = {};
+            chaptersSnap.forEach((docSnap) => {
+              completedChaptersMap[docSnap.id] = docSnap.data();
+            });
+            setBookChapters((prev) => 
+              prev.map((c) => completedChaptersMap[c.id] ? { ...c, ...completedChaptersMap[c.id] } : c)
+            );
+          } catch (e) {
+            console.error("Erro ao carregar capítulos do livro", e);
+            handleFirestoreError(e, OperationType.GET, `users/${uid}/bookChapters`);
           }
 
           // 4. Fetch private reflections list
@@ -349,6 +376,7 @@ export default function App() {
           setUser(null);
           setLessons(INITIAL_LESSONS);
           setBibleReadings(INITIAL_BIBLE_READINGS);
+          setBookChapters(INITIAL_BOOK_CHAPTERS);
           setReflections([]);
           setMedals(INITIAL_MEDALS);
           setActivityLogs([]);
@@ -463,11 +491,13 @@ export default function App() {
     let updatedCompletedMissionsCount = user.completedMissionsCount;
     let updatedReflectionsCount = user.reflectionsCount;
     let updatedLessonsStudiedCount = user.lessonsStudiedCount;
+    let updatedBookChaptersCount = user.bookChaptersCount || 0;
 
     if (activityType === 'bíblia') updatedBibleReadingsCount += 1;
     if (activityType === 'missão') updatedCompletedMissionsCount += 1;
     if (activityType === 'reflexão') updatedReflectionsCount += 1;
     if (activityType === 'lição') updatedLessonsStudiedCount += 1;
+    if (activityType === 'profecia') updatedBookChaptersCount += 1;
 
     const newUserState: UserProfileData = {
       ...user,
@@ -479,9 +509,11 @@ export default function App() {
       completedMissionsCount: updatedCompletedMissionsCount,
       reflectionsCount: updatedReflectionsCount,
       lessonsStudiedCount: updatedLessonsStudiedCount,
+      bookChaptersCount: updatedBookChaptersCount,
       dailyStatus: updatedDailyStatus || user.dailyStatus || {
         lessonCompleted: dailyStatus.lessonCompleted,
         bibleCompleted: dailyStatus.bibleCompleted,
+        bookChapterCompleted: dailyStatus.bookChapterCompleted || false,
         reflectionCompleted: dailyStatus.reflectionCompleted,
         missionCompleted: dailyStatus.missionCompleted,
         lastResetDate: new Date().toISOString().split('T')[0]
@@ -523,6 +555,7 @@ export default function App() {
     let currentCompletedMissionsCount = user.completedMissionsCount;
     let currentReflectionsCount = user.reflectionsCount;
     let currentLessonsStudiedCount = user.lessonsStudiedCount;
+    let currentBookChaptersCount = user.bookChaptersCount || 0;
     let nextThreshold = user.xpNeededForNextLevel;
 
     const logsToAppend: {
@@ -557,6 +590,7 @@ export default function App() {
       if (reward.activityType === 'missão') currentCompletedMissionsCount += 1;
       if (reward.activityType === 'reflexão') currentReflectionsCount += 1;
       if (reward.activityType === 'lição') currentLessonsStudiedCount += 1;
+      if (reward.activityType === 'profecia') currentBookChaptersCount += 1;
 
       logsToAppend.push({
         type: reward.activityType,
@@ -585,9 +619,11 @@ export default function App() {
       completedMissionsCount: currentCompletedMissionsCount,
       reflectionsCount: currentReflectionsCount,
       lessonsStudiedCount: currentLessonsStudiedCount,
+      bookChaptersCount: currentBookChaptersCount,
       dailyStatus: updatedDailyStatus || user.dailyStatus || {
         lessonCompleted: dailyStatus.lessonCompleted,
         bibleCompleted: dailyStatus.bibleCompleted,
+        bookChapterCompleted: dailyStatus.bookChapterCompleted || false,
         reflectionCompleted: dailyStatus.reflectionCompleted,
         missionCompleted: dailyStatus.missionCompleted,
         lastResetDate: new Date().toISOString().split('T')[0]
@@ -822,6 +858,34 @@ export default function App() {
     await handleAwardXp(10, 'bíblia', `Leitura Bíblica: ${passage}`, undefined, updatedStatus);
   };
 
+  const handleCompleteBookChapter = async (chapterId: string, answer: string) => {
+    if (!user) return;
+    setBookChapters((prev) => prev.map((c) => c.id === chapterId ? { ...c, completed: true, answer } : c));
+
+    const updatedStatus = {
+      ...dailyStatus,
+      bookChapterCompleted: true,
+      lastResetDate: new Date().toISOString().split('T')[0]
+    };
+    setDailyStatus(updatedStatus);
+
+    try {
+      await setDoc(doc(db, 'users', user.id, 'bookChapters', chapterId), {
+        id: chapterId,
+        completed: true,
+        answer,
+        completedAt: new Date().toISOString()
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `users/${user.id}/bookChapters/${chapterId}`);
+    }
+
+    const chTitle = bookChapters.find(c => c.id === chapterId)?.title || 'Capítulo';
+    await handleAwardMultipleXp([
+      { xpAmount: 30, activityType: 'profecia', title: `Leitura: Espírito de Profecia - ${chTitle}`, observation: answer ? `O que aprendi: "${answer.slice(0, 100)}..."` : undefined }
+    ], updatedStatus);
+  };
+
   const handleSaveReflection = async (content: string, type: 'oração' | 'aprendizado' | 'gratidão' | 'reflexão') => {
     if (!user) return;
     const newRef: SpiritualReflection = {
@@ -1013,7 +1077,7 @@ export default function App() {
   // SIMULATOR TRIGGER: "Avançar Próximo Dia"
   const handleSimulateNewDay = async () => {
     if (!user) return;
-    const didAnything = dailyStatus.lessonCompleted || dailyStatus.bibleCompleted || dailyStatus.reflectionCompleted || dailyStatus.missionCompleted;
+    const didAnything = dailyStatus.lessonCompleted || dailyStatus.bibleCompleted || dailyStatus.bookChapterCompleted || dailyStatus.reflectionCompleted || dailyStatus.missionCompleted;
     
     let nextStreak = user.streakDays;
     if (didAnything) {
@@ -1031,6 +1095,7 @@ export default function App() {
     const clearedStatus = {
       lessonCompleted: false,
       bibleCompleted: false,
+      bookChapterCompleted: false,
       reflectionCompleted: false,
       missionCompleted: false,
       lastResetDate: todayStr
@@ -1054,6 +1119,7 @@ export default function App() {
     setDailyStatus({
       lessonCompleted: false,
       bibleCompleted: false,
+      bookChapterCompleted: false,
       reflectionCompleted: false,
       missionCompleted: false,
     });
@@ -1076,9 +1142,22 @@ export default function App() {
             user={user}
             dailyStatus={dailyStatus}
             onQuickAction={(action) => {
-              if (action === 'licao') setActiveTab('communion');
-              if (action === 'bible') { setActiveTab('communion'); }
-              if (action === 'reflection') setActiveTab('communion');
+              if (action === 'licao') {
+                setActiveCommunionSubTab('lesson');
+                setActiveTab('communion');
+              }
+              if (action === 'bible') {
+                setActiveCommunionSubTab('bible');
+                setActiveTab('communion');
+              }
+              if (action === 'bookChapter') {
+                setActiveCommunionSubTab('book');
+                setActiveTab('communion');
+              }
+              if (action === 'reflection') {
+                setActiveCommunionSubTab('reflection');
+                setActiveTab('communion');
+              }
               if (action === 'mission') setActiveTab('mission');
               if (action === 'path') setActiveTab('path');
               if (action === 'medals') setActiveTab('medals');
@@ -1094,9 +1173,12 @@ export default function App() {
             lessons={lessons}
             bibleReadings={bibleReadings}
             reflections={reflections}
+            bookChapters={bookChapters}
             bibleProgressPercent={biblePercent}
+            initialSubTab={activeCommunionSubTab}
             onCompleteLesson={handleCompleteLesson}
             onCompleteBibleReading={handleCompleteBibleReading}
+            onCompleteBookChapter={handleCompleteBookChapter}
             onSaveReflection={handleSaveReflection}
             onDeleteReflection={handleDeleteReflection}
           />
@@ -1221,7 +1303,7 @@ export default function App() {
               <Sparkles className="w-4 h-4 fill-white" />
             </div>
             <div className="text-left flex-1 min-w-0">
-              <span className="text-[9px] uppercase tracking-wider font-extrabold text-[#004b87] block">Aviso do Templo</span>
+              <span className="text-[9px] uppercase tracking-wider font-extrabold text-[#004b87] block">Aviso da Igreja</span>
               <p className="text-xs text-slate-700 mt-1 leading-normal break-words">
                 {activeToast}
               </p>

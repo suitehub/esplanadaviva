@@ -1,36 +1,54 @@
-import React, { useState } from 'react';
-import { BookOpen, Compass, PenTool, CheckCircle, Sparkles, BookOpenCheck, HelpCircle, Save, Star, Trash2, Globe, ExternalLink } from 'lucide-react';
-import { SabbathLesson, BibleReading, SpiritualReflection } from '../types';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, Compass, PenTool, CheckCircle, Sparkles, BookOpenCheck, HelpCircle, Save, Star, Trash2, Globe, ExternalLink, Bookmark } from 'lucide-react';
+import { SabbathLesson, BibleReading, SpiritualReflection, BookChapter } from '../types';
+import { BOOK_CHAPTERS_CONTENT } from '../data/bookChaptersText';
 
 interface TabCommunionProps {
   lessons: SabbathLesson[];
   bibleReadings: BibleReading[];
   reflections: SpiritualReflection[];
+  bookChapters: BookChapter[];
   bibleProgressPercent: number;
+  initialSubTab?: 'lesson' | 'bible' | 'book' | 'reflection';
   onCompleteLesson: (lessonId: string, answer: string) => void;
   onCompleteBibleReading: (readingId: string) => void;
+  onCompleteBookChapter: (chapterId: string, answer: string) => void;
   onSaveReflection: (content: string, type: 'oração' | 'aprendizado' | 'gratidão' | 'reflexão') => void;
   onDeleteReflection: (id: string) => void;
 }
 
-type SubTab = 'lesson' | 'bible' | 'reflection';
+type SubTab = 'lesson' | 'bible' | 'book' | 'reflection';
 
 export default function TabCommunion({
   lessons,
   bibleReadings,
   reflections,
+  bookChapters = [],
   bibleProgressPercent,
+  initialSubTab,
   onCompleteLesson,
   onCompleteBibleReading,
+  onCompleteBookChapter,
   onSaveReflection,
   onDeleteReflection
 }: TabCommunionProps) {
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('lesson');
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>(initialSubTab || 'lesson');
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
   
   // Lesson state
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   const [lessonAnswer, setLessonAnswer] = useState('');
   const [lessonSuccessMsg, setLessonSuccessMsg] = useState('');
+
+  // Book Chapter state
+  const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
+  const [bookAnswer, setBookAnswer] = useState('');
+  const [bookSuccessMsg, setBookSuccessMsg] = useState('');
 
   // Reflection state
   const [reflectionContent, setReflectionContent] = useState('');
@@ -46,6 +64,16 @@ export default function TabCommunion({
     onCompleteLesson(currentLesson.id, lessonAnswer);
     setLessonSuccessMsg('✓ Resposta registrada! Adicionou +25 XP (Comunhão Ativa).');
     setTimeout(() => setLessonSuccessMsg(''), 4000);
+  };
+
+  const handleBookSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const currentChapter = bookChapters[currentChapterIndex];
+    if (!currentChapter || !bookAnswer.trim()) return;
+
+    onCompleteBookChapter(currentChapter.id, bookAnswer);
+    setBookSuccessMsg('✓ Resposta registrada! Adicionou +30 XP (Leitura Concluída).');
+    setTimeout(() => setBookSuccessMsg(''), 4000);
   };
 
   const handleReflectionSubmit = (e: React.FormEvent) => {
@@ -72,7 +100,7 @@ export default function TabCommunion({
       </div>
 
       {/* Sub-Tabs / Switch buttons */}
-      <div className="bg-[#FAF9F5] p-1 rounded-2xl grid grid-cols-3 gap-1.5 border border-[#e5e0d5]">
+      <div className="bg-[#FAF9F5] p-1 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-1.5 border border-[#e5e0d5]">
         <button
           id="subtab-btn-lesson"
           onClick={() => setActiveSubTab('lesson')}
@@ -97,6 +125,25 @@ export default function TabCommunion({
         >
           <Compass className="w-4 h-4 shrink-0 text-current" />
           <span className="truncate">Ano Bíblico</span>
+        </button>
+
+        <button
+          id="subtab-btn-book"
+          onClick={() => {
+            setActiveSubTab('book');
+            const cur = bookChapters[currentChapterIndex];
+            if (cur) {
+              setBookAnswer(cur.answer || '');
+            }
+          }}
+          className={`py-2.5 px-1 text-[11px] sm:text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+            activeSubTab === 'book'
+              ? 'bg-[#004b87] text-white shadow-sm'
+              : 'text-slate-500 hover:text-[#004b87]'
+          }`}
+        >
+          <Bookmark className="w-4 h-4 shrink-0 text-current" />
+          <span className="truncate">Espírito de Profecia</span>
         </button>
 
         <button
@@ -336,6 +383,167 @@ export default function TabCommunion({
             </div>
           </div>
         )}
+
+        {/* SUBTAB: EVENTOS FINAIS BOOK STUDY */}
+        {activeSubTab === 'book' && (() => {
+          const completedChaptersCount = bookChapters.filter(c => c.completed).length;
+          const bookProgressPercent = Math.round((completedChaptersCount / (bookChapters.length || 20)) * 100) || 0;
+          const currentChapter = bookChapters[currentChapterIndex] || bookChapters[0];
+          const chapterText = BOOK_CHAPTERS_CONTENT[currentChapter?.id] || BOOK_CHAPTERS_CONTENT[`chapter-${currentChapter?.chapterNumber}`] || currentChapter?.summary || '';
+
+          return (
+            <div className="space-y-6 text-left">
+              {/* Progress Card */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#FAF9F5] p-4 rounded-2xl border border-[#e5e0d5]">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-slate-500 uppercase font-black font-mono tracking-widest pl-0.5">Espírito de Profecia</span>
+                  <p className="text-base font-black text-[#004b87] font-mono mt-0.5">
+                    {completedChaptersCount} de {bookChapters.length} capítulos concluídos ({bookProgressPercent}%)
+                  </p>
+                </div>
+                <div className="w-full sm:w-40 h-2.5 bg-slate-200 rounded-full overflow-hidden border border-[#e5e0d5] shrink-0">
+                  <div className="h-full bg-[#004b87] transition-all duration-500" style={{ width: `${bookProgressPercent}%` }} />
+                </div>
+              </div>
+
+              {/* Chapter Selector Grid */}
+              <div className="bg-[#FAF9F5] p-4 rounded-2xl border border-[#e5e0d5] space-y-2.5">
+                <span className="text-[10px] text-slate-500 font-black uppercase font-mono tracking-wider pl-0.5">
+                  Selecione um Capítulo para Leitura:
+                </span>
+                <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-10 gap-2">
+                  {bookChapters.map((ch, idx) => {
+                    return (
+                      <button
+                        key={ch.id}
+                        id={`btn-chapter-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          setCurrentChapterIndex(idx);
+                          setBookAnswer(ch.answer || '');
+                        }}
+                        className={`py-3 rounded-xl text-xs font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer border ${
+                          currentChapterIndex === idx
+                            ? 'bg-[#004b87] text-white border-[#004b87] shadow-sm scale-105'
+                            : ch.completed
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-250 hover:bg-emerald-100'
+                            : 'bg-white hover:bg-slate-50 text-slate-650 border-[#e5e0d5]'
+                        }`}
+                      >
+                        <span className="text-[8px] uppercase tracking-widest opacity-80 leading-none">Cap</span>
+                        <span className="text-xs font-mono font-black leading-none mt-0.5">{ch.chapterNumber}</span>
+                        {ch.completed && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Selected Chapter Details */}
+              {currentChapter && (
+                <div className="space-y-4">
+                  {/* Title & Page Header */}
+                  <div className="bg-[#FAF9F5] p-5 rounded-2xl border border-[#e5e0d5] space-y-4 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#e5e0d5] pb-3">
+                      <h4 className="text-lg font-black text-[#0f2646] font-sans">
+                        Capítulo {currentChapter.chapterNumber}: {currentChapter.title}
+                      </h4>
+                      <span className="text-[10px] font-bold text-[#b48a30] bg-[#FDF8EB] border border-[#f5ebcb] px-2.5 py-1 rounded-lg shrink-0 font-mono tracking-wide">
+                        Páginas {currentChapter.pages}
+                      </span>
+                    </div>
+
+                    {/* FULL TEXT SCROLLABLE CONTAINER */}
+                    <div className="bg-white rounded-xl border border-stone-150 p-4 sm:p-6 text-sm text-slate-700 leading-relaxed font-sans shadow-inner max-h-[500px] overflow-y-auto space-y-4 scrollbar-thin">
+                      {chapterText.split('\n').map((line, lIdx) => {
+                        const trimmed = line.trim();
+                        if (!trimmed) return null;
+
+                        if (trimmed.startsWith('### ')) {
+                          return (
+                            <h3 key={lIdx} className="text-lg font-black text-[#0f2646] pt-4 pb-1 border-b border-[#e5e0d5] font-sans">
+                              {trimmed.substring(4)}
+                            </h3>
+                          );
+                        }
+                        if (trimmed.startsWith('#### ')) {
+                          return (
+                            <h4 key={lIdx} className="text-sm font-black text-[#004b87] pt-3 font-sans uppercase tracking-wide">
+                              {trimmed.substring(5)}
+                            </h4>
+                          );
+                        }
+                        if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+                          return (
+                            <p key={lIdx} className="text-[11px] font-mono font-medium text-amber-800 bg-[#FDF8EB] border-l-2 border-[#b48a30] p-2 rounded-r-lg italic pl-3 my-1">
+                              {trimmed}
+                            </p>
+                          );
+                        }
+                        return (
+                          <p key={lIdx} className="text-slate-700 leading-relaxed text-justify text-xs md:text-sm">
+                            {trimmed}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Submission and Validation */}
+                  <div className="space-y-3">
+                    {currentChapter.completed ? (
+                      <div className="bg-emerald-50 border border-emerald-250 p-4 rounded-2xl flex items-start gap-3 text-emerald-800 text-xs">
+                        <BookOpenCheck className="w-5 h-5 shrink-0 text-emerald-600 mt-0.5" />
+                        <div className="space-y-1 w-full">
+                          <p className="font-extrabold text-sm text-emerald-800">Leitura concluída e validada! (+30 XP)</p>
+                          <p className="text-[10px] text-slate-400 font-mono">Resumo registrado em seu diário profético</p>
+                          <p className="opacity-95 text-slate-650 italic font-medium bg-white p-3 rounded-xl border border-emerald-100 mt-2 font-sans break-words shadow-inner">
+                            "{currentChapter.answer}"
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleBookSubmit} className="space-y-3">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-black text-[#0f2646] flex items-center gap-1.5 font-sans leading-none">
+                            <HelpCircle className="w-4 h-4 shrink-0 text-[#b48a30]" />
+                            O que você aprendeu com esta leitura hoje? (Mínimo de reflexão para validar)
+                          </label>
+                          <p className="text-[11px] text-slate-500 font-medium">Escreva em suas próprias palavras um breve aprendizado ou resumo prático do capítulo para validar e somar pontos de crescimento espiritual.</p>
+                          <textarea
+                            id="book-chapter-answer"
+                            value={bookAnswer}
+                            onChange={(e) => setBookAnswer(e.target.value)}
+                            placeholder="Escreva aqui suas reflexões, aprendizados e insights sobre os eventos finais descritos neste capítulo..."
+                            className="w-full h-28 bg-[#FAF9F5] border border-[#e5e0d5] focus:border-[#004b87] rounded-xl p-3.5 text-xs md:text-sm text-[#1e293b] placeholder:text-slate-400 font-sans outline-none resize-none shadow-inner"
+                          />
+                        </div>
+
+                        {bookSuccessMsg && (
+                          <div className="text-xs text-emerald-700 font-mono text-center font-bold">
+                            {bookSuccessMsg}
+                          </div>
+                        )}
+
+                        <button
+                          id="btn-complete-book-chapter"
+                          type="submit"
+                          disabled={!bookAnswer.trim()}
+                          className="w-full bg-[#004b87] hover:bg-[#003b6d] disabled:opacity-40 disabled:pointer-events-none text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer text-xs shadow-sm transition-all"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Confirmar Leitura e Ganhar XP (+30 XP)
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* SUBTAB 3: SPIRITUAL REFLECTION JOURNAL */}
         {activeSubTab === 'reflection' && (
