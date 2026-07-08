@@ -807,6 +807,16 @@ export default function App() {
   // Handle communion actions
   const handleCompleteLesson = async (lessonId: string, answer: string) => {
     if (!user) return;
+
+    // Guard: Prevent completing future lesson days
+    const lessonIndex = parseInt(lessonId.replace('lesson-', ''), 10) - 1;
+    const todayDay = new Date().getDay();
+    const todayIndex = todayDay === 6 ? 0 : todayDay + 1;
+    if (lessonIndex > todayIndex) {
+      triggerToast('🚫 Não é permitido responder lições de dias futuros!');
+      return;
+    }
+
     setLessons((prev) => prev.map((l) => l.id === lessonId ? { ...l, completed: true, answer } : l));
 
     const updatedStatus = {
@@ -835,6 +845,14 @@ export default function App() {
 
   const handleCompleteBibleReading = async (readingId: string) => {
     if (!user) return;
+
+    // Guard: Prevent completing future Bible readings
+    const dayNum = parseInt(readingId.replace('bible-', ''), 10);
+    if (dayNum > user.streakDays) {
+      triggerToast('🚫 Não é permitido marcar leituras bíblicas de dias futuros!');
+      return;
+    }
+
     setBibleReadings((prev) => prev.map((r) => r.id === readingId ? { ...r, completed: true } : r));
 
     const updatedStatus = {
@@ -860,6 +878,14 @@ export default function App() {
 
   const handleCompleteBookChapter = async (chapterId: string, answer: string) => {
     if (!user) return;
+
+    // Guard: Prevent completing future book chapters
+    const chapterNum = parseInt(chapterId.replace('chapter-', ''), 10);
+    if (chapterNum > user.streakDays) {
+      triggerToast('🚫 Não é permitido marcar capítulos de dias futuros!');
+      return;
+    }
+
     setBookChapters((prev) => prev.map((c) => c.id === chapterId ? { ...c, completed: true, answer } : c));
 
     const updatedStatus = {
@@ -1176,6 +1202,7 @@ export default function App() {
             bookChapters={bookChapters}
             bibleProgressPercent={biblePercent}
             initialSubTab={activeCommunionSubTab}
+            streakDays={user ? user.streakDays : 1}
             onCompleteLesson={handleCompleteLesson}
             onCompleteBibleReading={handleCompleteBibleReading}
             onCompleteBookChapter={handleCompleteBookChapter}

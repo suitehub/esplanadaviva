@@ -276,7 +276,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Erro ao realizar login com o Google.');
+      if (err.code !== 'auth/cancelled-popup-request' && err.code !== 'auth/popup-closed-by-user') {
+        setError(err.message || 'Erro ao realizar login com o Google.');
+      }
     } finally {
       setLoading(false);
     }
