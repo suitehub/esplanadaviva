@@ -9,6 +9,7 @@ interface UserProfileProps {
   bibleProgressPercent: number;
   totalActivitiesCount: number;
   onUpdateUserProfile?: (updatedUser: UserProfileData) => void;
+  onDeleteAccount?: () => Promise<void>;
 }
 
 export default function UserProfile({
@@ -17,8 +18,12 @@ export default function UserProfile({
   bibleProgressPercent,
   totalActivitiesCount,
   onUpdateUserProfile,
+  onDeleteAccount,
 }: UserProfileProps) {
   const [showCustomizer, setShowCustomizer] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Customizer state preset with current user customizations or defaults
   const [customUser, setCustomUser] = useState<UserProfileData>({ ...user });
@@ -163,6 +168,122 @@ export default function UserProfile({
           </div>
         </div>
       </div>
+
+      {/* Configurações da Conta Section */}
+      <div className="space-y-3">
+        <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Configurações do Membro</h4>
+        
+        <div className="bg-white border border-[#e5e0d5] rounded-3xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center gap-2.5 border-b border-stone-100 pb-3 text-[#0f2646]">
+            <Icons.Settings className="w-5 h-5 text-[#b48a30]" />
+            <span className="font-extrabold text-sm sm:text-base">Ajustes de Conta e Privacidade</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-rose-50/40 border border-rose-100">
+            <div className="space-y-1">
+              <h5 className="text-xs font-extrabold text-rose-800 flex items-center gap-1.5 leading-none">
+                <Icons.Trash2 className="w-4 h-4 text-rose-600" />
+                Excluir Conta Permanentemente
+              </h5>
+              <p className="text-[11px] text-stone-550 leading-relaxed font-medium max-w-lg">
+                Seu progresso espiritual, nível, lições, e avatar Chibi serão apagados de nossos servidores permanentemente, em conformidade com as diretrizes da LGPD brasileira.
+              </p>
+            </div>
+            
+            <button
+              id="btn-delete-account-trigger"
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm text-center shrink-0"
+            >
+              Excluir Conta
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-[#2C2620]/65 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-[#e8dfd3] rounded-[32px] p-6 max-w-md w-full shadow-2xl space-y-5 text-left">
+            <div className="flex items-center gap-3 text-rose-600 border-b border-stone-100 pb-3">
+              <span className="text-2xl">🚨</span>
+              <div>
+                <h4 className="font-extrabold text-base text-[#2C2620] leading-none">Excluir Conta Permanentemente?</h4>
+                <span className="text-[10px] font-mono text-rose-500 font-bold block mt-1">ESTA AÇÃO É IRREVERSÍVEL</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-600 leading-relaxed font-medium">
+              Ao confirmar a exclusão, todos os seus dados espirituais associados ao seu e-mail <strong>({user.email})</strong> serão excluídos permanentemente de nossos servidores no Firestore, incluindo:
+            </p>
+
+            <ul className="list-disc list-inside text-[11px] text-stone-500 space-y-1 pl-1 font-medium">
+              <li>Seu avatar de crescimento Chibi personalizado</li>
+              <li>Sua pontuação total acumulada de <strong>{user.xp} XP</strong></li>
+              <li>Histórico de <strong>{user.streakDays} dias</strong> de streak diário</li>
+              <li>Respostas escritas e lições de Escola Sabatina</li>
+              <li>Todas as anotações do seu Diário Espiritual</li>
+            </ul>
+
+            <div className="space-y-2">
+              <label htmlFor="delete-confirm-input" className="text-[11px] font-black text-stone-700 block leading-relaxed">
+                Para confirmar a exclusão definitiva, digite a palavra <strong className="text-rose-600 select-all">EXCLUIR</strong> no campo abaixo:
+              </label>
+              <input
+                id="delete-confirm-input"
+                type="text"
+                placeholder='Escreva "EXCLUIR"'
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                className="w-full bg-[#FAF8F5] border border-rose-200 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-black outline-none transition-all placeholder:text-stone-300 text-rose-700 tracking-wider text-center"
+              />
+            </div>
+
+            <div className="flex gap-2.5 justify-end text-xs font-bold pt-1 border-t border-stone-100">
+              <button
+                type="button"
+                id="btn-delete-cancel"
+                disabled={isDeleting}
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmInput('');
+                }}
+                className="bg-stone-100 hover:bg-stone-200 text-stone-600 px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                id="btn-delete-confirm"
+                disabled={deleteConfirmInput !== 'EXCLUIR' || isDeleting}
+                onClick={async () => {
+                  setIsDeleting(true);
+                  if (onDeleteAccount) {
+                    await onDeleteAccount();
+                  }
+                  setIsDeleting(false);
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmInput('');
+                }}
+                className="bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:pointer-events-none text-white px-5 py-2.5 rounded-xl cursor-pointer shadow-md flex items-center gap-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    Excluindo...
+                  </>
+                ) : (
+                  <>
+                    <Icons.Trash2 className="w-4 h-4" />
+                    Excluir Minha Conta
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 
 

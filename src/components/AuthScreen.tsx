@@ -35,6 +35,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [church, setChurch] = useState('Bonsucesso');
   const [loading, setLoading] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const CHURCHES = [
     'Bonsucesso',
@@ -74,6 +76,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       }
       if (password !== confirmPassword) {
         setError('As senhas não coincidem.');
+        setLoading(false);
+        return;
+      }
+      if (!acceptTerms) {
+        setError('Você precisa aceitar as Políticas de Privacidade e os Termos de Uso para prosseguir.');
         setLoading(false);
         return;
       }
@@ -212,12 +219,21 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       }
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      const errCode = err.code || '';
+      const errMsg = err.message || '';
+
+      if (
+        errCode === 'auth/user-not-found' || 
+        errCode === 'auth/wrong-password' || 
+        errCode === 'auth/invalid-credential' ||
+        errMsg.includes('auth/invalid-credential') ||
+        errMsg.includes('invalid-credential')
+      ) {
         setError('E-mail ou senha inválidos.');
-      } else if (err.code === 'auth/email-already-in-use') {
+      } else if (errCode === 'auth/email-already-in-use' || errMsg.includes('auth/email-already-in-use')) {
         setError('Este e-mail já está sendo utilizado.');
       } else {
-        setError(err.message || 'Erro ao realizar autenticação.');
+        setError(errMsg || 'Erro ao realizar autenticação.');
       }
     } finally {
       setLoading(false);
@@ -276,8 +292,26 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       }
     } catch (err: any) {
       console.error(err);
-      if (err.code !== 'auth/cancelled-popup-request' && err.code !== 'auth/popup-closed-by-user') {
-        setError(err.message || 'Erro ao realizar login com o Google.');
+      const errCode = err.code || '';
+      const errMsg = err.message || '';
+
+      if (
+        errCode === 'auth/cancelled-popup-request' || 
+        errCode === 'auth/popup-closed-by-user' ||
+        errCode === 'auth/popup-blocked' ||
+        errMsg.includes('auth/cancelled-popup-request') ||
+        errMsg.includes('auth/popup-closed-by-user') ||
+        errMsg.includes('popup-blocked')
+      ) {
+        setError('O login com Google foi cancelado ou bloqueado pelo navegador. Se estiver no ambiente de testes, tente abrir o app em uma Nova Aba para que o pop-up funcione, ou utilize login com E-mail/Senha.');
+      } else if (
+        errCode === 'auth/invalid-credential' ||
+        errMsg.includes('auth/invalid-credential') ||
+        errMsg.includes('invalid-credential')
+      ) {
+        setError('Credencial do Google inválida ou expirada. Tente fazer login novamente.');
+      } else {
+        setError(errMsg || 'Erro ao realizar login com o Google.');
       }
     } finally {
       setLoading(false);
@@ -1067,6 +1101,30 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                 </motion.div>
               </AnimatePresence>
 
+              {!isLogin && (
+                <div className="flex items-start gap-2.5 pt-2 pb-1 select-none">
+                  <input
+                    id="checkbox-accept-terms"
+                    type="checkbox"
+                    checked={acceptTerms}
+                    onChange={(e) => setAcceptTerms(e.target.checked)}
+                    style={{ accentColor: '#b48a30' }}
+                    className="mt-1 h-4 w-4 rounded border-stone-300 text-[#b48a30] focus:ring-[#b48a30] cursor-pointer"
+                  />
+                  <label htmlFor="checkbox-accept-terms" className="text-[11px] text-stone-600 leading-relaxed font-medium cursor-pointer">
+                    Declaro que li e aceito a{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      className="text-[#b48a30] hover:text-amber-800 font-extrabold underline cursor-pointer"
+                    >
+                      Política de Privacidade e Termos de Uso
+                    </button>{' '}
+                    sobre o processamento, armazenamento e uso de meus dados e progresso espiritual neste aplicativo.
+                  </label>
+                </div>
+              )}
+
               {isLogin && (
                 <div className="text-right">
                   <button
@@ -1193,6 +1251,125 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                 </div>
               </form>
             )}
+          </motion.div>
+        </div>
+      )}
+
+      {/* Privacy Policy & Terms of Use Modal */}
+      {showTermsModal && (
+        <div className="fixed inset-0 bg-[#2C2620]/65 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="bg-white border border-[#e8dfd3] rounded-[32px] p-6 sm:p-7 max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl text-left"
+          >
+            <div className="flex items-center justify-between border-b border-stone-150 pb-4 shrink-0">
+              <div className="flex items-center gap-2.5 text-amber-700">
+                <span className="text-2xl">📋</span>
+                <div>
+                  <h4 className="font-extrabold text-base sm:text-lg text-[#2C2620] leading-none">Termos de Uso & Privacidade</h4>
+                  <span className="text-[10px] font-mono text-stone-400 font-bold block mt-1">Última atualização: Julho de 2026</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="text-stone-400 hover:text-stone-600 font-bold text-lg p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Terms Content */}
+            <div className="flex-1 overflow-y-auto my-4 pr-2 space-y-4 text-xs text-stone-650 leading-relaxed font-medium">
+              <p>
+                Seja muito bem-vindo ao aplicativo oficial de <strong>Discipulado & Crescimento Espiritual</strong> do Distrito. 
+                Nós levamos a sério a transparência e a segurança de suas informações. Leia com atenção as diretrizes de privacidade e termos abaixo sobre como tratamos seus dados:
+              </p>
+
+              <div>
+                <h5 className="font-black text-stone-800 uppercase tracking-wider text-[10px] font-mono mb-1">1. Quais dados são recolhidos?</h5>
+                <p>
+                  Para participar da jornada espiritual e gamificada, nós coletamos:
+                </p>
+                <ul className="list-disc list-inside pl-2 space-y-1 mt-1 text-[11px]">
+                  <li><strong>Informações Cadastrais:</strong> Nome completo, endereço de e-mail de acesso e o gênero biológico (utilizado para gerar a anatomia e estética básicas do seu avatar Chibi inicial).</li>
+                  <li><strong>Respostas e Estudos de Lição:</strong> Anotações textuais e reflexões de aprendizagem que você preenche voluntariamente ao concluir as lições diárias.</li>
+                  <li><strong>Progresso Espiritual:</strong> Marcações de capítulos lidos do livro-base (Eventos Finais), passagens da leitura bíblica diária concluídas, reflexões anotadas e missões práticas de fé executadas.</li>
+                  <li><strong>Métricas de Gamificação:</strong> XP acumulado, nível de progresso espiritual, conquistas ganhas, medalhas conquistadas e histórico de dias consecutivos de conexão (streak espiritual).</li>
+                  <li><strong>Vinculação Local:</strong> Seleção da sua congregação local (Igreja) e, quando aplicável, o vínculo ao seu Discipulador imediato.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h5 className="font-black text-stone-800 uppercase tracking-wider text-[10px] font-mono mb-1">2. Qual a finalidade do tratamento de dados?</h5>
+                <p>
+                  Estes dados são processados estritamente para as seguintes finalidades, sem fins comerciais:
+                </p>
+                <ul className="list-disc list-inside pl-2 space-y-1 mt-1 text-[11px]">
+                  <li><strong>Engajamento e Gamificação:</strong> Atualizar suas conquistas, permitir a personalização do seu avatar, subida de nível de discipulado e computar placares salutares.</li>
+                  <li><strong>Suporte de Discipulado Pessoal:</strong> Se você estiver vinculado a um Discipulador ou Pastor cadastrado na congregação, este poderá visualizar seu painel de progresso diário (leituras bíblicas concluídas e lições) com a finalidade exclusiva de prestar aconselhamento, oração mútua, cuidado pastoral e encorajamento personalizado.</li>
+                  <li><strong>Estatísticas Pastorais Coletivas:</strong> Geração de relatórios globais de participação (como volume de leitura bíblica da igreja) sem exposição invasiva de dados sensíveis para o público geral.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h5 className="font-black text-stone-800 uppercase tracking-wider text-[10px] font-mono mb-1">3. Compartilhamento e Segurança</h5>
+                <p>
+                  O armazenamento do aplicativo é estruturado de forma moderna e segura com serviços em nuvem do <strong>Google Firebase Firestore</strong> e <strong>Firebase Authentication</strong>. 
+                  Seus dados <strong>nunca</strong> serão vendidos, alugados ou compartilhados com fins mercadológicos, redes sociais externas ou anunciantes terceiros.
+                </p>
+              </div>
+
+              <div>
+                <h5 className="font-black text-stone-800 uppercase tracking-wider text-[10px] font-mono mb-1">4. Seus Direitos (LGPD)</h5>
+                <p>
+                  Como titular dos seus dados espirituais e pessoais, você possui amplo direito assegurado:
+                </p>
+                <ul className="list-disc list-inside pl-2 space-y-1 mt-1 text-[11px]">
+                  <li>Você pode revisar, retificar ou complementar suas reflexões e respostas textuais registradas a qualquer tempo.</li>
+                  <li>Você possui o direito de <strong>excluir permanentemente sua conta</strong> e apagar por completo todo o seu histórico de progresso do banco de dados a qualquer momento, sem restrições, no painel de configurações ou enviando solicitação ao administrador local da igreja.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h5 className="font-black text-stone-800 uppercase tracking-wider text-[10px] font-mono mb-1">5. Deveres do Usuário</h5>
+                <p>
+                  Ao criar sua conta, você se compromete a preencher informações verídicas e manter uma conduta fraternal, respeitosa e ética em todas as áreas públicas ou compartilhadas de anotações e reflexões de fé.
+                </p>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-[11px] text-[#854d0e] font-semibold">
+                ⚠️ <strong>Aviso Legal:</strong> A aceitação deste termo é mandatória para a criação da conta e utilização do aplicativo de crescimento, garantindo conformidade com a legislação de proteção de dados brasileira.
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="border-t border-stone-150 pt-4 flex flex-col sm:flex-row justify-end gap-2.5 shrink-0">
+              <button
+                id="btn-terms-decline"
+                type="button"
+                onClick={() => {
+                  setAcceptTerms(false);
+                  setShowTermsModal(false);
+                }}
+                className="bg-stone-100 hover:bg-stone-200 border border-stone-200 text-stone-650 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer text-center"
+              >
+                Cancelar e Não Aceitar
+              </button>
+              <button
+                id="btn-terms-accept"
+                type="button"
+                onClick={() => {
+                  setAcceptTerms(true);
+                  setShowTermsModal(false);
+                }}
+                className="bg-gradient-to-r from-amber-600 to-[#b48a30] hover:from-amber-700 hover:to-amber-800 text-white px-5 py-2 rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all cursor-pointer text-center"
+              >
+                Li, Compreendi e Aceito
+              </button>
+            </div>
           </motion.div>
         </div>
       )}

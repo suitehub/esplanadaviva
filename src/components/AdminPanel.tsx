@@ -4,6 +4,7 @@ import { collection, getDocs, doc, setDoc, query, onSnapshot, deleteDoc } from '
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { MissionChallenge, UserProfileData } from '../types';
 import AvatarOfProgress from './AvatarOfProgress';
+import { AudioPlayer } from './AudioSystem';
 
 interface AdminPanelProps {
   challenges: MissionChallenge[];
@@ -1949,6 +1950,11 @@ export default function AdminPanel({
                                   <p className="text-xs text-slate-700 italic font-semibold leading-relaxed">
                                     {l.answer ? `"${l.answer}"` : <span className="text-slate-400 font-normal">Estudada (sem anotações).</span>}
                                   </p>
+                                  {l.audioUrl && (
+                                    <div className="mt-2 pt-1 border-t border-slate-50">
+                                      <AudioPlayer audioUrl={l.audioUrl} />
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -1971,6 +1977,11 @@ export default function AdminPanel({
                                   <p className="text-xs text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">
                                     "{r.content}"
                                   </p>
+                                  {r.audioUrl && (
+                                    <div className="mt-2 pt-1 border-t border-slate-50">
+                                      <AudioPlayer audioUrl={r.audioUrl} />
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -2039,6 +2050,11 @@ export default function AdminPanel({
                                   <p className="text-xs text-slate-700 italic font-semibold leading-relaxed">
                                     {ch.answer ? `"${ch.answer}"` : <span className="text-slate-400 font-normal">Lido (sem reflexões).</span>}
                                   </p>
+                                  {ch.audioUrl && (
+                                    <div className="mt-2 pt-1 border-t border-slate-50">
+                                      <AudioPlayer audioUrl={ch.audioUrl} />
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>

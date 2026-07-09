@@ -804,8 +804,36 @@ export default function App() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    try {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        // Delete the main user doc from Firestore
+        await deleteDoc(doc(db, 'users', currentUser.uid));
+        
+        // Delete the auth user
+        await currentUser.delete();
+      }
+      
+      setUser(null);
+      localStorage.removeItem('discipulado_active_user');
+      setActiveTab('dashboard');
+      triggerToast('Sua conta e progresso foram excluídos permanentemente.');
+    } catch (e: any) {
+      console.error("Erro ao excluir conta", e);
+      if (e.code === 'auth/requires-recent-login') {
+        triggerToast('⚠️ Para excluir sua conta por segurança, é necessário fazer login novamente.');
+        await signOut(auth);
+        setUser(null);
+        setActiveTab('dashboard');
+      } else {
+        triggerToast('Erro ao excluir conta de usuário. Tente novamente mais tarde.');
+      }
+    }
+  };
+
   // Handle communion actions
-  const handleCompleteLesson = async (lessonId: string, answer: string) => {
+  const handleCompleteLesson = async (lessonId: string, answer: string, audioUrl?: string) => {
     if (!user) return;
 
     // Guard: Prevent completing future lesson days
@@ -817,7 +845,7 @@ export default function App() {
       return;
     }
 
-    setLessons((prev) => prev.map((l) => l.id === lessonId ? { ...l, completed: true, answer } : l));
+    setLessons((prev) => prev.map((l) => l.id === lessonId ? { ...l, completed: true, answer, audioUrl } : l));
 
     const updatedStatus = {
       ...dailyStatus,
@@ -831,6 +859,7 @@ export default function App() {
         id: lessonId,
         completed: true,
         answer,
+        audioUrl: audioUrl || null,
         completedAt: new Date().toISOString()
       });
     } catch (e) {
@@ -876,7 +905,7 @@ export default function App() {
     await handleAwardXp(10, 'bíblia', `Leitura Bíblica: ${passage}`, undefined, updatedStatus);
   };
 
-  const handleCompleteBookChapter = async (chapterId: string, answer: string) => {
+  const handleCompleteBookChapter = async (chapterId: string, answer: string, audioUrl?: string) => {
     if (!user) return;
 
     // Guard: Prevent completing future book chapters
@@ -886,7 +915,7 @@ export default function App() {
       return;
     }
 
-    setBookChapters((prev) => prev.map((c) => c.id === chapterId ? { ...c, completed: true, answer } : c));
+    setBookChapters((prev) => prev.map((c) => c.id === chapterId ? { ...c, completed: true, answer, audioUrl } : c));
 
     const updatedStatus = {
       ...dailyStatus,
@@ -900,6 +929,7 @@ export default function App() {
         id: chapterId,
         completed: true,
         answer,
+        audioUrl: audioUrl || null,
         completedAt: new Date().toISOString()
       });
     } catch (e) {
@@ -912,13 +942,14 @@ export default function App() {
     ], updatedStatus);
   };
 
-  const handleSaveReflection = async (content: string, type: 'oração' | 'aprendizado' | 'gratidão' | 'reflexão') => {
+  const handleSaveReflection = async (content: string, type: 'oração' | 'aprendizado' | 'gratidão' | 'reflexão', audioUrl?: string) => {
     if (!user) return;
     const newRef: SpiritualReflection = {
       id: `ref-${Date.now()}`,
       date: new Date().toLocaleDateString('pt-BR'),
       content,
-      type
+      type,
+      audioUrl
     };
 
     setReflections((prev) => [newRef, ...prev]);
@@ -1240,6 +1271,7 @@ export default function App() {
                 handleFirestoreError(e, OperationType.WRITE, `users/${newUser.id}`);
               }
             }}
+            onDeleteAccount={handleDeleteAccount}
           />
         );
       case 'history':

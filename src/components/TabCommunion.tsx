@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, Compass, PenTool, CheckCircle, Sparkles, BookOpenCheck, HelpCircle, Save, Star, Trash2, Globe, ExternalLink, Bookmark } from 'lucide-react';
 import { SabbathLesson, BibleReading, SpiritualReflection, BookChapter } from '../types';
 import { BOOK_CHAPTERS_CONTENT } from '../data/bookChaptersText';
+import { AudioRecorder, AudioPlayer } from './AudioSystem';
 
 interface TabCommunionProps {
   lessons: SabbathLesson[];
@@ -11,10 +12,10 @@ interface TabCommunionProps {
   bibleProgressPercent: number;
   initialSubTab?: 'lesson' | 'bible' | 'book' | 'reflection';
   streakDays?: number;
-  onCompleteLesson: (lessonId: string, answer: string) => void;
+  onCompleteLesson: (lessonId: string, answer: string, audioUrl?: string) => void;
   onCompleteBibleReading: (readingId: string) => void;
-  onCompleteBookChapter: (chapterId: string, answer: string) => void;
-  onSaveReflection: (content: string, type: 'oração' | 'aprendizado' | 'gratidão' | 'reflexão') => void;
+  onCompleteBookChapter: (chapterId: string, answer: string, audioUrl?: string) => void;
+  onSaveReflection: (content: string, type: 'oração' | 'aprendizado' | 'gratidão' | 'reflexão', audioUrl?: string) => void;
   onDeleteReflection: (id: string) => void;
 }
 
@@ -45,25 +46,43 @@ export default function TabCommunion({
   // Lesson state
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   const [lessonAnswer, setLessonAnswer] = useState('');
+  const [lessonAudioUrl, setLessonAudioUrl] = useState<string | null>(null);
   const [lessonSuccessMsg, setLessonSuccessMsg] = useState('');
 
   // Book Chapter state
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [bookAnswer, setBookAnswer] = useState('');
+  const [bookAudioUrl, setBookAudioUrl] = useState<string | null>(null);
   const [bookSuccessMsg, setBookSuccessMsg] = useState('');
 
   // Reflection state
   const [reflectionContent, setReflectionContent] = useState('');
+  const [reflectionAudioUrl, setReflectionAudioUrl] = useState<string | null>(null);
   const [reflectionType, setReflectionType] = useState<'oração' | 'aprendizado' | 'gratidão' | 'reflexão'>('reflexão');
   const [reflectionSuccessMsg, setReflectionSuccessMsg] = useState('');
+
+  // Reset audio on tab/selection changes
+  useEffect(() => {
+    setLessonAudioUrl(null);
+  }, [currentLessonIndex]);
+
+  useEffect(() => {
+    setBookAudioUrl(null);
+  }, [currentChapterIndex]);
+
+  useEffect(() => {
+    setReflectionAudioUrl(null);
+  }, [activeSubTab]);
 
   const currentLesson = lessons[currentLessonIndex] || lessons[0];
 
   const handleLessonSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!lessonAnswer.trim()) return;
+    if (!lessonAnswer.trim() && !lessonAudioUrl) return;
 
-    onCompleteLesson(currentLesson.id, lessonAnswer);
+    const finalAnswer = lessonAnswer.trim() || 'Estudo registrado em áudio';
+    onCompleteLesson(currentLesson.id, finalAnswer, lessonAudioUrl || undefined);
+    setLessonAudioUrl(null);
     setLessonSuccessMsg('✓ Resposta registrada! Adicionou +25 XP (Comunhão Ativa).');
     setTimeout(() => setLessonSuccessMsg(''), 4000);
   };
@@ -71,19 +90,23 @@ export default function TabCommunion({
   const handleBookSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const currentChapter = bookChapters[currentChapterIndex];
-    if (!currentChapter || !bookAnswer.trim()) return;
+    if (!currentChapter || (!bookAnswer.trim() && !bookAudioUrl)) return;
 
-    onCompleteBookChapter(currentChapter.id, bookAnswer);
+    const finalAnswer = bookAnswer.trim() || 'Leitura registrada em áudio';
+    onCompleteBookChapter(currentChapter.id, finalAnswer, bookAudioUrl || undefined);
+    setBookAudioUrl(null);
     setBookSuccessMsg('✓ Resposta registrada! Adicionou +30 XP (Leitura Concluída).');
     setTimeout(() => setBookSuccessMsg(''), 4000);
   };
 
   const handleReflectionSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reflectionContent.trim()) return;
+    if (!reflectionContent.trim() && !reflectionAudioUrl) return;
 
-    onSaveReflection(reflectionContent, reflectionType);
+    const finalContent = reflectionContent.trim() || 'Diário registrado em áudio';
+    onSaveReflection(finalContent, reflectionType, reflectionAudioUrl || undefined);
     setReflectionContent('');
+    setReflectionAudioUrl(null);
     setReflectionSuccessMsg('✓ Registro arquivado em seu Diário Espiritual. Recebeu +15 XP.');
     setTimeout(() => setReflectionSuccessMsg(''), 4000);
   };
@@ -304,10 +327,16 @@ export default function TabCommunion({
                     if (currentLesson.completed) {
                       return (
                         <div className="bg-emerald-50 border border-emerald-250 p-4 rounded-xl flex items-start gap-3 text-emerald-800 text-xs">
-                          <BookOpenCheck className="w-5 h-5 shrink-0 text-emerald-600" />
-                          <div className="space-y-1">
+                          <BookOpenCheck className="w-5 h-5 shrink-0 text-emerald-600 mt-0.5" />
+                          <div className="space-y-1 w-full">
                             <p className="font-extrabold text-sm">Lição respondida e concluída! (+25 XP)</p>
                             <p className="opacity-95 text-slate-650 italic font-medium bg-white p-2.5 rounded-lg border border-emerald-100 mt-1">O que você aprendeu: "{currentLesson.answer}"</p>
+                            {currentLesson.audioUrl && (
+                              <div className="mt-3">
+                                <span className="text-[10px] text-slate-400 font-bold block mb-1">Anotação em Áudio:</span>
+                                <AudioPlayer audioUrl={currentLesson.audioUrl} />
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -330,6 +359,14 @@ export default function TabCommunion({
                           />
                         </div>
 
+                        {/* Audio recording option */}
+                        <div className="py-1">
+                          <AudioRecorder
+                            onAudioReady={(base64) => setLessonAudioUrl(base64)}
+                            onClear={() => setLessonAudioUrl(null)}
+                          />
+                        </div>
+
                         {lessonSuccessMsg && (
                           <div className="text-xs text-emerald-700 font-mono text-center font-bold">
                             {lessonSuccessMsg}
@@ -339,7 +376,7 @@ export default function TabCommunion({
                         <button
                           id="btn-lesson-complete"
                           type="submit"
-                          disabled={!lessonAnswer.trim()}
+                          disabled={!lessonAnswer.trim() && !lessonAudioUrl}
                           className="w-full bg-[#004b87] hover:bg-[#003b6d] disabled:opacity-40 disabled:pointer-events-none text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer text-xs shadow-sm transition-all"
                         >
                           <CheckCircle className="w-4 h-4" />
@@ -577,6 +614,12 @@ export default function TabCommunion({
                               <p className="opacity-95 text-slate-650 italic font-medium bg-white p-3 rounded-xl border border-emerald-100 mt-2 font-sans break-words shadow-inner">
                                 "{currentChapter.answer}"
                               </p>
+                              {currentChapter.audioUrl && (
+                                <div className="mt-3">
+                                  <span className="text-[10px] text-slate-400 font-bold block mb-1">Reflexão em Áudio:</span>
+                                  <AudioPlayer audioUrl={currentChapter.audioUrl} />
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
@@ -599,6 +642,14 @@ export default function TabCommunion({
                             />
                           </div>
 
+                          {/* Audio recording option */}
+                          <div className="py-1">
+                            <AudioRecorder
+                              onAudioReady={(base64) => setBookAudioUrl(base64)}
+                              onClear={() => setBookAudioUrl(null)}
+                            />
+                          </div>
+
                           {bookSuccessMsg && (
                             <div className="text-xs text-emerald-700 font-mono text-center font-bold">
                               {bookSuccessMsg}
@@ -608,7 +659,7 @@ export default function TabCommunion({
                           <button
                             id="btn-complete-book-chapter"
                             type="submit"
-                            disabled={!bookAnswer.trim()}
+                            disabled={!bookAnswer.trim() && !bookAudioUrl}
                             className="w-full bg-[#004b87] hover:bg-[#003b6d] disabled:opacity-40 disabled:pointer-events-none text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer text-xs shadow-sm transition-all"
                           >
                             <CheckCircle className="w-4 h-4" />
@@ -661,6 +712,14 @@ export default function TabCommunion({
                 />
               </div>
 
+              {/* Audio recording option */}
+              <div className="py-1">
+                <AudioRecorder
+                  onAudioReady={(base64) => setReflectionAudioUrl(base64)}
+                  onClear={() => setReflectionAudioUrl(null)}
+                />
+              </div>
+
               {reflectionSuccessMsg && (
                 <div className="text-xs text-emerald-700 font-mono text-center font-bold">
                   {reflectionSuccessMsg}
@@ -670,7 +729,7 @@ export default function TabCommunion({
               <button
                 id="btn-save-reflection"
                 type="submit"
-                disabled={!reflectionContent.trim()}
+                disabled={!reflectionContent.trim() && !reflectionAudioUrl}
                 className="w-full bg-[#004b87] hover:bg-[#003b6d] disabled:opacity-40 disabled:pointer-events-none text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer text-xs"
               >
                 <Save className="w-4 h-4" />
@@ -708,6 +767,11 @@ export default function TabCommunion({
                       <p className="text-xs text-slate-700 leading-relaxed font-sans font-medium break-words">
                         "{ref.content}"
                       </p>
+                      {ref.audioUrl && (
+                        <div className="mt-2 pt-1">
+                          <AudioPlayer audioUrl={ref.audioUrl} />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

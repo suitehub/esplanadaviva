@@ -62,6 +62,7 @@ export interface SabbathLesson {
   content: string;
   question: string;
   answer?: string;
+  audioUrl?: string;
   completed: boolean;
   completedAt?: string;
 }
@@ -79,6 +80,7 @@ export interface SpiritualReflection {
   date: string;
   content: string;
   type: 'oração' | 'aprendizado' | 'gratidão' | 'reflexão';
+  audioUrl?: string;
 }
 
 export interface MissionChallenge {
@@ -136,6 +138,7 @@ export interface BookChapter {
   content?: string;
   completed: boolean;
   answer?: string;
+  audioUrl?: string;
   completedAt?: string;
 }
 
