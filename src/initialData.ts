@@ -515,3 +515,18 @@ export const INITIAL_BOOK_CHAPTERS: BookChapter[] = [
   }
 ];
 
+export function getSabbathWeekSaturdayDate(dateInput: Date = new Date()): string {
+  const d = new Date(dateInput);
+  const currentDay = d.getDay(); // 0 is Sunday, 6 is Saturday
+  // In the Adventist study week, Saturday is day 0 of the study week.
+  // So if today is Saturday (6), diff is 0. If Sunday (0), diff is -1. If Monday (1), diff is -2, etc.
+  const diffToSaturday = currentDay === 6 ? 0 : -(currentDay + 1);
+  d.setDate(d.getDate() + diffToSaturday);
+  
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+

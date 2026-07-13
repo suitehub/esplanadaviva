@@ -1944,7 +1944,17 @@ export default function AdminPanel({
                               {selectedLessons.map(l => (
                                 <div key={l.id} className="bg-white border border-slate-100 p-2.5 rounded-xl space-y-1">
                                   <div className="flex justify-between items-center text-[9px] font-mono text-slate-400 font-bold">
-                                    <span className="text-[#004b87] font-extrabold">Lição: {l.id}</span>
+                                    <span className="text-[#004b87] font-extrabold">
+                                      {l.id.includes('_') ? (() => {
+                                        const [weekDate, lessonName] = l.id.split('_');
+                                        const [year, month, day] = weekDate.split('-');
+                                        const num = lessonName.replace('lesson-', '');
+                                        const dayLabels = ['Sábado', 'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+                                        const idx = parseInt(num, 10) - 1;
+                                        const dayLabel = dayLabels[idx] || `Dia ${num}`;
+                                        return `Semana ${day}/${month}/${year.substring(2)} — ${dayLabel}`;
+                                      })() : `Lição: ${l.id}`}
+                                    </span>
                                     <span>{l.completedAt ? new Date(l.completedAt).toLocaleDateString('pt-BR') : ''}</span>
                                   </div>
                                   <p className="text-xs text-slate-700 italic font-semibold leading-relaxed">

@@ -53,7 +53,8 @@ import {
   INITIAL_MISSIONS, 
   INITIAL_MEDALS, 
   INITIAL_MILESTONES,
-  INITIAL_BOOK_CHAPTERS
+  INITIAL_BOOK_CHAPTERS,
+  getSabbathWeekSaturdayDate
 } from './initialData';
 
 // Import Views
@@ -250,10 +251,31 @@ export default function App() {
             const lessonsSnap = await getDocs(collection(db, 'users', uid, 'lessons'));
             const completedLessonsMap: Record<string, any> = {};
             lessonsSnap.forEach((docSnap) => {
-              completedLessonsMap[docSnap.id] = docSnap.data();
+              completedLessonsMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
             });
+            const currentWeekSaturday = getSabbathWeekSaturdayDate();
             setLessons((prev) => 
-              prev.map((l) => completedLessonsMap[l.id] ? { ...l, ...completedLessonsMap[l.id] } : l)
+              prev.map((l) => {
+                const prefixedId = `${currentWeekSaturday}_${l.id}`;
+                const data = completedLessonsMap[prefixedId] || completedLessonsMap[l.id];
+                
+                if (data) {
+                  // If the ID isn't exactly the current week's prefixed ID, verify completedAt
+                  if (data.id !== prefixedId) {
+                    const completedAt = data.completedAt;
+                    if (completedAt) {
+                      const weekOfCompletion = getSabbathWeekSaturdayDate(new Date(completedAt));
+                      if (weekOfCompletion !== currentWeekSaturday) {
+                        return { ...l, completed: false, answer: undefined, audioUrl: undefined };
+                      }
+                    } else {
+                      return { ...l, completed: false, answer: undefined, audioUrl: undefined };
+                    }
+                  }
+                  return { ...l, completed: true, answer: data.answer, audioUrl: data.audioUrl };
+                }
+                return { ...l, completed: false, answer: undefined, audioUrl: undefined };
+              })
             );
           } catch (e) {
             console.error("Erro ao carregar lições", e);
@@ -854,16 +876,19 @@ export default function App() {
     };
     setDailyStatus(updatedStatus);
 
+    const currentWeekSaturday = getSabbathWeekSaturdayDate();
+    const docId = `${currentWeekSaturday}_${lessonId}`;
+
     try {
-      await setDoc(doc(db, 'users', user.id, 'lessons', lessonId), {
-        id: lessonId,
+      await setDoc(doc(db, 'users', user.id, 'lessons', docId), {
+        id: docId,
         completed: true,
         answer,
         audioUrl: audioUrl || null,
         completedAt: new Date().toISOString()
       });
     } catch (e) {
-      handleFirestoreError(e, OperationType.WRITE, `users/${user.id}/lessons/${lessonId}`);
+      handleFirestoreError(e, OperationType.WRITE, `users/${user.id}/lessons/${docId}`);
     }
 
     await handleAwardMultipleXp([
